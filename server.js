@@ -258,6 +258,16 @@ ${isSynthesis ? 'MODE: This is a synthesis book drawing threads from across mult
 ${voiceInstruction}`;
 
   try {
+    // Track what's been covered to prevent repetition
+    const writtenSummaries = [];
+
+    const getAlreadyWritten = () => {
+      if (writtenSummaries.length === 0) return '';
+      return `\nALREADY WRITTEN — DO NOT REPEAT these stories, examples, or frameworks:
+${writtenSummaries.map((s, i) => `- ${s}`).join('\n')}
+Use DIFFERENT examples, anecdotes, and entry points for this chapter even if drawing from the same source material.\n`;
+    };
+
     // Introduction
     send({ type: 'chapter_start', chapter: 0, title: 'Introduction' });
 
@@ -272,13 +282,14 @@ Write 700–900 words. Follow the VOICE instruction above exactly. Include:
 1. A compelling opening hook (specific story, provocative question, or surprising insight from the source material)
 2. Who this book is for — name the reader directly
 3. What problem this solves and why now
-4. Brief overview of the journey ahead
+4. Brief overview of the journey ahead — mention each chapter title briefly
 5. A note that establishes the author's credibility and expertise
 
 ${isSynthesis ? 'This is a synthesis of multiple works — acknowledge that this book brings together the best of the author\'s thinking in a new, unified framework.' : ''}
 
 Be specific and pull from the actual source material. Avoid generic writing.`;
 
+    let introText = '';
     const introStream = await anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
@@ -287,8 +298,11 @@ Be specific and pull from the actual source material. Avoid generic writing.`;
     for await (const chunk of introStream) {
       if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
         send({ type: 'text', text: chunk.delta.text });
+        introText += chunk.delta.text;
       }
     }
+    // Extract brief summary of what the intro covered
+    writtenSummaries.push(`Introduction: ${introText.substring(0, 300).replace(/\n/g, ' ')}...`);
     send({ type: 'chapter_end', chapter: 0 });
 
     // Chapters
@@ -299,7 +313,7 @@ Be specific and pull from the actual source material. Avoid generic writing.`;
       const chapterPrompt = `You are a professional ghostwriter. Write Chapter ${i + 1} of this eBook.
 
 ${bookContext}
-
+${getAlreadyWritten()}
 THIS CHAPTER:
 Title: "${pillar.title}"
 ${pillar.subtitle ? `Subtitle: "${pillar.subtitle}"` : ''}
@@ -308,19 +322,20 @@ Key insights to include: ${(pillar.keyInsights || []).join('; ')}
 
 Chapter position: ${i + 1} of ${pillars.length} (${i === 0 ? 'first chapter — set the foundation' : i === pillars.length - 1 ? 'final chapter — bring it home' : 'middle chapter — build on what came before'})
 
-SOURCE MATERIAL (pull actual examples, stories, and frameworks from this):
+SOURCE MATERIAL (pull actual examples, stories, and frameworks from this — but ONLY ones not already used above):
 ${sourceContent}
 
 Write 900–1200 words. Follow the VOICE instruction above exactly. Structure:
-1. Chapter opening that hooks (story, bold claim, or question)
+1. A FRESH opening — different story, angle, or hook from any previous chapter
 2. Core teaching in 3–4 distinct sections with clear sub-headings
-3. Concrete examples drawn from the author's actual experience or the source material
-4. Practical takeaway, exercise, or reflection prompt at the end
+3. NEW examples and anecdotes not mentioned in earlier chapters
+4. Practical takeaway, exercise, or reflection prompt specific to this chapter's topic
 
 ${isSynthesis ? 'Draw threads from ACROSS the source material — show how ideas from different works connect and reinforce each other in this chapter.' : ''}
 
-Be specific. Pull real content from the source material. Do not be generic.`;
+Be specific. Each chapter must feel like a distinct progression — not a repeat.`;
 
+      let chapterText = '';
       const stream = await anthropic.messages.stream({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 3000,
@@ -329,8 +344,11 @@ Be specific. Pull real content from the source material. Do not be generic.`;
       for await (const chunk of stream) {
         if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
           send({ type: 'text', text: chunk.delta.text });
+          chapterText += chunk.delta.text;
         }
       }
+      // Add brief summary so next chapters avoid these examples
+      writtenSummaries.push(`Chapter ${i + 1} "${pillar.title}": ${chapterText.substring(0, 300).replace(/\n/g, ' ')}...`);
       send({ type: 'chapter_end', chapter: i + 1 });
     }
 
