@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>eBook Studio — Transform Your Wisdom Into a Published Work</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <header id="appHeader">
+    <div class="header-logo">
+      <span class="logo-mark">✦</span>
+      <span class="logo-text">eBook Studio</span>
+    </div>
+    <nav class="step-trail" id="stepTrail">
+      <div class="trail-item" data-step="1"><span class="trail-num">1</span><span class="trail-label">Gather</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="2"><span class="trail-num">2</span><span class="trail-label">Ideas</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="3"><span class="trail-num">3</span><span class="trail-label">Pillars</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="4"><span class="trail-num">4</span><span class="trail-label">Clarify</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="5"><span class="trail-num">5</span><span class="trail-label">Brand</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="6"><span class="trail-num">6</span><span class="trail-label">Generate</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="7"><span class="trail-num">7</span><span class="trail-label">Marketing</span></div>
+      <div class="trail-divider"></div>
+      <div class="trail-item" data-step="8"><span class="trail-num">8</span><span class="trail-label">Export</span></div>
+    </nav>
+  </header>
+
+  <main id="app">
+
+    <!-- ══ STEP 1: GATHER ══════════════════════════════════════ -->
+    <section class="step active" id="step-1">
+      <div class="step-inner">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 1 of 8</p>
+          <h1 class="step-title">Gather Your Body of Work</h1>
+          <p class="step-subtitle">Upload everything you've created. The AI reads across all of it to find your strongest ideas, consistent frameworks, and signature voice.</p>
+        </div>
+
+        <!-- Mode toggle -->
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="modeSingle" onclick="setMode('single')">✦ Single eBook</button>
+          <button class="mode-btn" id="modeSynth" onclick="setMode('synthesis')">⟳ Synthesize Multiple Works</button>
+        </div>
+
+        <!-- Synthesis explanation (shown in synthesis mode) -->
+        <div class="synthesis-banner hidden" id="synthesisBanner">
+          <div class="synthesis-icon">🧬</div>
+          <div class="synthesis-text">
+            <h3>AI Book Synthesis Mode</h3>
+            <p>Upload multiple existing books, courses, or content collections. The AI finds the through-lines — your consistent frameworks, recurring insights, and signature ideas — and weaves them into one unified, coherent book that's stronger than any single source. Perfect for authors ready to create a definitive work.</p>
+          </div>
+        </div>
+
+        <div class="gather-grid">
+          <!-- File Upload -->
+          <div class="gather-panel">
+            <h3 class="panel-title"><span class="panel-icon">📄</span> Upload Files</h3>
+            <p class="panel-desc">PDFs, Word docs, TXT files, transcripts, existing books</p>
+            <div class="drop-zone" id="dropZone">
+              <div class="drop-inner">
+                <div class="drop-icon">⬆</div>
+                <p>Drag files here or <label for="fileInput" class="drop-browse">browse</label></p>
+                <p class="drop-types">PDF · DOCX · TXT · MD — up to 50MB each</p>
+              </div>
+              <input type="file" id="fileInput" multiple accept=".pdf,.docx,.doc,.txt,.md" hidden />
+            </div>
+            <div class="file-list" id="fileList"></div>
+          </div>
+
+          <!-- URLs -->
+          <div class="gather-panel">
+            <h3 class="panel-title"><span class="panel-icon">🔗</span> Scrape URLs</h3>
+            <p class="panel-desc">Blog posts, Substack articles, LinkedIn newsletters, podcast pages</p>
+            <div class="url-inputs" id="urlInputs">
+              <div class="url-row">
+                <input type="url" class="url-field" placeholder="https://yoursubstack.com/p/article-name" />
+                <button class="url-remove hidden" onclick="this.closest('.url-row').remove()">×</button>
+              </div>
+            </div>
+            <button class="btn-ghost btn-sm" id="addUrlBtn">+ Add another URL</button>
+            <button class="btn-secondary btn-sm" id="scrapeBtn">Fetch Content</button>
+            <div class="url-results" id="urlResults"></div>
+          </div>
+
+          <!-- Paste Text -->
+          <div class="gather-panel gather-panel--wide">
+            <h3 class="panel-title"><span class="panel-icon">📋</span> Paste Raw Content</h3>
+            <p class="panel-desc">LinkedIn posts, email sequences, talk transcripts, workshop content — anything that won't scrape or isn't in a file</p>
+            <textarea id="pastedText" class="paste-area" placeholder="Paste content directly here — LinkedIn posts, email sequences, talk notes, workshop content, client testimonials, course transcripts…"></textarea>
+          </div>
+
+          <!-- Content Ownership -->
+          <div class="gather-panel gather-panel--wide" style="background:var(--surface-2);">
+            <h3 class="panel-title"><span class="panel-icon">🖊</span> Whose content is this?</h3>
+            <p class="panel-desc">This determines whether the book is written in first person ("I") or third person ("she/he/they").</p>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:0.25rem;">
+              <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.65rem 1.1rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);transition:all 0.2s;" id="ownerMyselfLabel">
+                <input type="radio" name="contentOwner" value="myself" id="ownerMyself" checked style="accent-color:var(--purple)" />
+                <span style="font-size:0.85rem;font-weight:700;">✍️ My own content — write in first person (I, me, my)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.65rem 1.1rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--surface);transition:all 0.2s;" id="ownerClientLabel">
+                <input type="radio" name="contentOwner" value="client" id="ownerClient" style="accent-color:var(--purple)" />
+                <span style="font-size:0.85rem;font-weight:700;">👤 Someone else's content — write in third person (she/he/they)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-summary hidden" id="contentSummary">
+          <div class="summary-label">Content gathered:</div>
+          <div class="summary-stats" id="summaryStats"></div>
+        </div>
+
+        <div class="step-footer">
+          <div class="author-name-row">
+            <label class="field-label" for="authorNameInput">Author Name</label>
+            <input type="text" id="authorNameInput" class="field-input" style="width:220px" placeholder="e.g. Viveka von Rosen" />
+          </div>
+          <button class="btn-primary" id="analyzeBtn" disabled>
+            <span>Analyze My Content</span><span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 2: IDEAS ════════════════════════════════════════ -->
+    <section class="step" id="step-2">
+      <div class="step-inner">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 2 of 8</p>
+          <h1 class="step-title">Your Book Concepts</h1>
+          <p class="step-subtitle">Four distinct directions your book could take, drawn directly from your body of work. Select one — or edit it to make it yours.</p>
+        </div>
+        <div class="loading-state hidden" id="ideasLoading">
+          <div class="spinner"></div>
+          <p class="loading-text">Analyzing your body of work and surfacing book concepts…</p>
+        </div>
+        <div class="ideas-grid" id="ideasGrid"></div>
+
+        <!-- Editable title row — shown after selection -->
+        <div class="editable-title-row hidden" style="margin-top:1.25rem;background:var(--surface);border:1.5px solid var(--border);border-left:4px solid var(--gold);border-radius:var(--radius);padding:1rem 1.25rem;">
+          <label class="field-label" for="editableBookTitle" style="margin-bottom:0.5rem">Publication Title — edit if you'd like to change it</label>
+          <input type="text" id="editableBookTitle" class="field-input" placeholder="Your book title" />
+        </div>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo1">← Back</button>
+          <div class="footer-right">
+            <button class="btn-ghost btn-sm" id="regenerateIdeas">↺ Regenerate Ideas</button>
+            <button class="btn-primary hidden" id="confirmIdea"><span>Build Chapter Structure</span><span class="btn-arrow">→</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 3: PILLARS ══════════════════════════════════════ -->
+    <section class="step" id="step-3">
+      <div class="step-inner">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 3 of 8</p>
+          <h1 class="step-title">Chapter Structure</h1>
+          <p class="step-subtitle">These are the pillars your book stands on. Rename, reorder, or cut any that don't fit.</p>
+        </div>
+        <div class="selected-idea-banner" id="selectedIdeaBanner"></div>
+        <div class="loading-state hidden" id="pillarsLoading">
+          <div class="spinner"></div>
+          <p class="loading-text">Architecting your chapter structure…</p>
+        </div>
+        <div class="pillars-container" id="pillarsContainer"></div>
+        <div class="pillar-actions">
+          <button class="btn-ghost btn-sm" id="addPillarBtn">+ Add Chapter</button>
+        </div>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo2">← Back</button>
+          <div class="footer-right">
+            <button class="btn-ghost btn-sm" id="regeneratePillars">↺ Regenerate Structure</button>
+            <button class="btn-primary" id="confirmPillars"><span>Continue to Questions</span><span class="btn-arrow">→</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 4: CLARIFY ══════════════════════════════════════ -->
+    <section class="step" id="step-4">
+      <div class="step-inner">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 4 of 8</p>
+          <h1 class="step-title">Strategic Clarity</h1>
+          <p class="step-subtitle">These answers shape the voice, focus, and impact of your book. Take your time with them.</p>
+        </div>
+        <form class="clarify-form" id="clarifyForm" onsubmit="return false;">
+          <div class="form-group">
+            <label class="field-label required" for="q-idealReader">Who is your ideal reader?</label>
+            <p class="field-hint">Be specific — job, life stage, situation, what they're struggling with right now</p>
+            <textarea id="q-idealReader" class="field-textarea" rows="3" placeholder="e.g. A senior marketing director in her late 40s who's been laid off and wants to turn 20 years of brand strategy expertise into her own consulting practice — but doesn't know where to start."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label required" for="q-uniqueApproach">What makes your approach different?</label>
+            <p class="field-hint">Your methodology, framework, lens, or perspective that nobody else has</p>
+            <textarea id="q-uniqueApproach" class="field-textarea" rows="3" placeholder="e.g. I combine deep positioning work with LinkedIn authority building and AI-powered systems — so clients aren't just clear on their value, they're visible and generating inbound leads within 90 days."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label required" for="q-clientPains">What are your readers' top 3 pains?</label>
+            <p class="field-hint">The real, specific frustrations — not just surface symptoms</p>
+            <textarea id="q-clientPains" class="field-textarea" rows="4" placeholder="1. They've spent 20+ years building expertise but have no idea how to package it into a clear offer.&#10;2. They feel invisible — they know they have value but can't get in front of the right people.&#10;3. They're overwhelmed by all the tech and don't know what they actually need."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label required" for="q-bookSolution">How does this book solve those pains?</label>
+            <p class="field-hint">The specific shifts, tools, or frameworks this book provides</p>
+            <textarea id="q-bookSolution" class="field-textarea" rows="3" placeholder="e.g. It walks them through a clear positioning process, shows them how to build visible authority on LinkedIn without posting constantly, and gives them an AI workflow that speeds everything up without requiring a tech background."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label required" for="q-transformation">What transformation do readers experience?</label>
+            <p class="field-hint">The before/after in concrete, tangible terms</p>
+            <textarea id="q-transformation" class="field-textarea" rows="3" placeholder="e.g. They go from 'I have no idea where to start' to 'I have a clear offer, a visible presence, and a pipeline of ideal clients' — without starting over or reinventing themselves."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label" for="q-callToAction">What should readers do after finishing the book?</label>
+            <p class="field-hint">Your CTA — website, discovery call, community, course, etc.</p>
+            <textarea id="q-callToAction" class="field-textarea" rows="2" placeholder="e.g. Book a free Clarity Call at mywebsite.com/call or join the private community at mywebsite.com/community"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label required" for="q-authorBio">Your author bio</label>
+            <p class="field-hint">Used for the About the Author section — include credentials, experience, and how to find you</p>
+            <textarea id="q-authorBio" class="field-textarea" rows="4" placeholder="e.g. Viveka von Rosen is a LinkedIn authority, author, speaker, and strategist who has spent 15+ years helping accomplished professionals turn their expertise into visible authority. She can be found at vivekavonrosen.com and on LinkedIn @VivekaVonRosen."></textarea>
+          </div>
+          <div class="form-group">
+            <label class="field-label" for="q-website">Your website URL</label>
+            <p class="field-hint">Appears in the eBook footer on every page and on the cover</p>
+            <input type="text" id="q-website" class="field-input" placeholder="e.g. www.vivekavonrosen.com" />
+          </div>
+        </form>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo3">← Back</button>
+          <button class="btn-primary" id="confirmClarify"><span>Set Brand & Style</span><span class="btn-arrow">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 5: BRAND ════════════════════════════════════════ -->
+    <section class="step" id="step-5">
+      <div class="step-inner">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 5 of 8</p>
+          <h1 class="step-title">Brand & Style</h1>
+          <p class="step-subtitle">Set the visual identity for your eBook. Upload a stylesheet, paste brand guidelines, or set colors and fonts manually.</p>
+        </div>
+
+        <div class="brand-grid">
+          <!-- Colors -->
+          <div class="brand-panel">
+            <div class="brand-panel-title">Colors</div>
+            <div class="color-row">
+              <div class="color-field">
+                <label class="field-label-sm">Primary (headings, cover)</label>
+                <div class="color-swatch-row">
+                  <input type="color" id="colorPrimary" value="#571F81" class="color-picker" />
+                  <input type="text" id="colorPrimaryHex" value="#571F81" class="hex-input" />
+                </div>
+              </div>
+              <div class="color-field">
+                <label class="field-label-sm">Accent (highlights)</label>
+                <div class="color-swatch-row">
+                  <input type="color" id="colorAccent" value="#DFB24A" class="color-picker" />
+                  <input type="text" id="colorAccentHex" value="#DFB24A" class="hex-input" />
+                </div>
+              </div>
+              <div class="color-field">
+                <label class="field-label-sm">Body text</label>
+                <div class="color-swatch-row">
+                  <input type="color" id="colorText" value="#1A0A2E" class="color-picker" />
+                  <input type="text" id="colorTextHex" value="#1A0A2E" class="hex-input" />
+                </div>
+              </div>
+            </div>
+            <p class="field-label-sm">Quick palettes</p>
+            <div class="presets-row" id="colorPresets">
+              <button class="preset-btn" data-primary="#571F81" data-accent="#DFB24A" data-text="#1A0A2E" title="Purple & Gold"></button>
+              <button class="preset-btn" data-primary="#1B3A4B" data-accent="#2C97AF" data-text="#0D2233" title="Deep Teal"></button>
+              <button class="preset-btn" data-primary="#1A1A3E" data-accent="#C9A96E" data-text="#0A0A1E" title="Midnight Gold"></button>
+              <button class="preset-btn" data-primary="#1A2E1A" data-accent="#7CAE7A" data-text="#0D1F0D" title="Forest"></button>
+              <button class="preset-btn" data-primary="#2E1A1A" data-accent="#C87864" data-text="#1A0A0A" title="Terracotta"></button>
+              <button class="preset-btn" data-primary="#0D0D0D" data-accent="#DFB24A" data-text="#0D0D0D" title="Monochrome Gold"></button>
+            </div>
+          </div>
+
+          <!-- Typography -->
+          <div class="brand-panel">
+            <div class="brand-panel-title">Typography</div>
+            <div class="font-pair-select">
+              <div class="form-group-sm">
+                <label class="field-label-sm">Heading font</label>
+                <select id="fontHeading" class="field-select">
+                  <option value="'Bebas Neue', Georgia, serif">Bebas Neue — Bold display</option>
+                  <option value="'Playfair Display', Georgia, serif">Playfair Display — Elegant serif</option>
+                  <option value="'Cormorant Garamond', Georgia, serif">Cormorant Garamond — Classic editorial</option>
+                  <option value="Georgia, serif">Georgia — Trusted & readable</option>
+                  <option value="'Montserrat', Arial, sans-serif">Montserrat — Modern sans-serif</option>
+                  <option value="'Raleway', Arial, sans-serif">Raleway — Refined sans-serif</option>
+                </select>
+              </div>
+              <div class="form-group-sm">
+                <label class="field-label-sm">Body font</label>
+                <select id="fontBody" class="field-select">
+                  <option value="'Lato', system-ui, sans-serif">Lato — Clean and modern</option>
+                  <option value="'Crimson Pro', Georgia, serif">Crimson Pro — Literary serif</option>
+                  <option value="Georgia, serif">Georgia — Classic web-safe</option>
+                  <option value="'Open Sans', Arial, sans-serif">Open Sans — Clean and accessible</option>
+                  <option value="'Lora', Georgia, serif">Lora — Warm and balanced</option>
+                </select>
+              </div>
+            </div>
+            <div class="font-preview" id="fontPreview">
+              <p class="fp-heading">The Wisdom You Carry</p>
+              <p class="fp-body">Your expertise didn't accumulate by accident. Every client conversation, every insight you fought to earn — it's all here, waiting to be written down and shared with the people who need it most.</p>
+            </div>
+          </div>
+
+          <!-- Brand Guidelines Paste -->
+          <div class="brand-panel brand-panel--wide">
+            <div class="brand-panel-title">Brand Guidelines (optional)</div>
+            <p class="field-hint">Paste your brand guide text, a style description, or any color/font notes here. The AI will apply these to the book's voice and styling guidance.</p>
+            <textarea id="brandGuideText" class="paste-area" style="min-height:100px" placeholder="e.g. Our brand voice is warm, credible, and direct. We use purple (#571F81) as our primary color, gold (#DFB24A) as our accent, and Bebas Neue for headings. We avoid corporate jargon and always write in first person. Our tagline is: Women's wisdom and words change the world."></textarea>
+          </div>
+
+          <!-- Assets -->
+          <div class="brand-panel brand-panel--wide">
+            <div class="brand-panel-title">Assets</div>
+            <div class="asset-upload-row">
+              <div class="asset-upload">
+                <label class="field-label-sm">Logo (optional)</label>
+                <div class="asset-drop" id="logoDropZone">
+                  <div class="asset-drop-inner" id="logoDropInner">
+                    <span>Drop logo or <label for="logoInput" class="drop-browse">browse</label></span>
+                    <span class="asset-types">PNG · SVG · JPG</span>
+                  </div>
+                  <input type="file" id="logoInput" accept="image/*" hidden />
+                </div>
+                <img class="asset-preview hidden" id="logoPreview" alt="Logo preview" />
+              </div>
+              <div class="asset-upload">
+                <label class="field-label-sm">Cover image (optional)</label>
+                <div class="asset-drop" id="coverDropZone">
+                  <div class="asset-drop-inner" id="coverDropInner">
+                    <span>Drop image or <label for="coverInput" class="drop-browse">browse</label></span>
+                    <span class="asset-types">PNG · JPG · WEBP</span>
+                  </div>
+                  <input type="file" id="coverInput" accept="image/*" hidden />
+                </div>
+                <img class="asset-preview hidden" id="coverPreview" alt="Cover preview" />
+              </div>
+              <div class="asset-upload">
+                <label class="field-label-sm">CSS Stylesheet override</label>
+                <div class="asset-drop" id="cssDropZone">
+                  <div class="asset-drop-inner" id="cssDropInner">
+                    <span>Drop .css or <label for="cssInput" class="drop-browse">browse</label></span>
+                    <span class="asset-types">Overrides all color &amp; font settings</span>
+                  </div>
+                  <input type="file" id="cssInput" accept=".css" hidden />
+                </div>
+                <p class="css-filename hidden" id="cssFilename"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo4">← Back</button>
+          <button class="btn-primary" id="confirmBrand"><span>Write My Book</span><span class="btn-arrow">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 6: GENERATE ═════════════════════════════════════ -->
+    <section class="step" id="step-6">
+      <div class="step-inner step-inner--wide">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 6 of 8</p>
+          <h1 class="step-title">Writing Your Book</h1>
+          <p class="step-subtitle">Each chapter is being written from your source material in your voice. This takes 3–8 minutes.</p>
+        </div>
+        <div class="generate-layout">
+          <div class="generate-sidebar">
+            <div class="sidebar-title">Chapters</div>
+            <div class="chapter-progress-list" id="chapterProgressList"></div>
+          </div>
+          <div class="generate-preview">
+            <div class="preview-header">
+              <span class="preview-label" id="previewChapterLabel">Introduction</span>
+              <span class="preview-status" id="previewStatus">Writing…</span>
+            </div>
+            <div class="preview-body" id="previewBody">
+              <div class="writing-cursor"></div>
+            </div>
+          </div>
+        </div>
+        <div class="step-footer">
+          <button class="btn-ghost hidden" id="backTo5Gen">← Back</button>
+          <button class="btn-primary hidden" id="goToMarketing"><span>Generate Marketing Plan</span><span class="btn-arrow">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 7: MARKETING ════════════════════════════════════ -->
+    <section class="step" id="step-7">
+      <div class="step-inner step-inner--wide">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 7 of 8</p>
+          <h1 class="step-title">Your Marketing Plan</h1>
+          <p class="step-subtitle">A launch strategy built around your book — with real tactics, example posts, and AI prompts you can use right now.</p>
+        </div>
+
+        <div class="loading-state hidden" id="marketingLoading">
+          <div class="spinner"></div>
+          <p class="loading-text">Building your personalized marketing plan…</p>
+        </div>
+
+        <div class="marketing-content hidden" id="marketingContent">
+          <!-- Filled dynamically -->
+        </div>
+
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo6">← Back</button>
+          <button class="btn-primary" id="goToExport"><span>Review & Export</span><span class="btn-arrow">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ STEP 8: EXPORT ═══════════════════════════════════════ -->
+    <section class="step" id="step-8">
+      <div class="step-inner step-inner--wide">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 8 of 8</p>
+          <h1 class="step-title">Your eBook Is Ready</h1>
+          <p class="step-subtitle">Preview, download, or print your finished book below.</p>
+        </div>
+        <div class="export-actions">
+          <button class="btn-primary" id="downloadHtml">⬇ Download as HTML</button>
+          <button class="btn-secondary" id="downloadWord">📄 Download as Word (.doc)</button>
+          <button class="btn-secondary" id="copyForDocs">📋 Copy for Google Docs</button>
+          <button class="btn-secondary" id="printEbook">🖨 Print / Save as PDF</button>
+          <button class="btn-ghost" id="startOver">↺ Start Over</button>
+        </div>
+        <div class="export-hint">
+          <strong>HTML:</strong> Best for sharing digitally or printing to PDF (open in Chrome → Print → Save as PDF). &nbsp;
+          <strong>Word:</strong> Open in Microsoft Word or import into Google Docs (File → Open). &nbsp;
+          <strong>Google Docs:</strong> Click "Copy for Google Docs", open a new Google Doc, then paste.
+        </div>
+        <div class="ebook-preview-container">
+          <div class="ebook-preview" id="ebookPreview"></div>
+        </div>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo7">← Back to Marketing</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── Lead Capture Modal ──────────────────────────────── -->
+  <div class="lead-overlay hidden" id="leadOverlay">
+    <div class="lead-modal">
+      <div class="lead-modal-header">
+        <div class="lead-modal-mark">✦</div>
+        <h2 class="lead-modal-title">Almost There!</h2>
+        <p class="lead-modal-subtitle">Enter your details to get your eBook — we'll also send you a copy by email.</p>
+      </div>
+      <form class="lead-form" id="leadForm" onsubmit="return false;">
+        <div class="lead-form-row">
+          <div class="lead-field">
+            <label class="field-label required" for="lead-firstName">First Name</label>
+            <input type="text" id="lead-firstName" class="field-input" placeholder="Viveka" required />
+          </div>
+          <div class="lead-field">
+            <label class="field-label required" for="lead-lastName">Last Name</label>
+            <input type="text" id="lead-lastName" class="field-input" placeholder="von Rosen" />
+          </div>
+        </div>
+        <div class="lead-field">
+          <label class="field-label required" for="lead-email">Email Address</label>
+          <input type="email" id="lead-email" class="field-input" placeholder="you@yourwebsite.com" required />
+        </div>
+        <div class="lead-form-row">
+          <div class="lead-field">
+            <label class="field-label" for="lead-website">Website</label>
+            <input type="text" id="lead-website" class="field-input" placeholder="www.yoursite.com" />
+          </div>
+          <div class="lead-field">
+            <label class="field-label" for="lead-phone">Phone</label>
+            <input type="tel" id="lead-phone" class="field-input" placeholder="+1 555 000 0000" />
+          </div>
+        </div>
+        <p class="lead-privacy">Your information is kept private and never shared. You'll receive occasional emails from Beyond the Dream Board.</p>
+        <button class="lead-submit" id="leadSubmit" type="submit">
+          <span id="leadSubmitText">Get My eBook ✦</span>
+        </button>
+        <button class="lead-skip" id="leadSkip" type="button">Skip — just download without registering</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+  <script src="app.js"></script>
+</body>
+</html>
