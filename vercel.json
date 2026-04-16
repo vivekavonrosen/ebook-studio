@@ -1,15 +1,17 @@
 {
   "version": 2,
   "builds": [
+    { "src": "styles.css", "use": "@vercel/static" },
+    { "src": "app.js", "use": "@vercel/static" },
     {
       "src": "server.js",
       "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["index.html", "styles.css", "app.js"]
-      }
+      "config": { "includeFiles": ["index.html"] }
     }
   ],
   "routes": [
+    { "src": "/styles.css", "dest": "/styles.css" },
+    { "src": "/app.js", "dest": "/app.js" },
     { "src": "/(.*)", "dest": "server.js" }
   ]
 }
