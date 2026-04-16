@@ -82,14 +82,6 @@ function initAuth() {
     else { $('#fp-success').classList.remove('hidden'); $('#fp-error').classList.add('hidden'); }
   });
 
-  // Google OAuth
-  const signInGoogle = async () => { await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } }); };
-  const signInGitHub = async () => { await sb.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: window.location.origin } }); };
-  $('#googleSignIn').addEventListener('click', signInGoogle);
-  $('#googleSignUp').addEventListener('click', signInGoogle);
-  $('#githubSignIn').addEventListener('click', signInGitHub);
-  $('#githubSignUp').addEventListener('click', signInGitHub);
-
   // Sign out
   $('#signOutBtn').addEventListener('click', async () => {
     await sb.auth.signOut();
@@ -98,6 +90,7 @@ function initAuth() {
 
   // Auth state changes — handles page load, OAuth redirects, and sign out
   sb.auth.onAuthStateChange(async (event, session) => {
+    console.log('AUTH EVENT:', event, session?.user?.email);
     if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
       if (session?.user) {
         state.user = session.user;
