@@ -96,10 +96,20 @@ function initAuth() {
       state.user = session.user;
       state.accessToken = session.access_token;
       onSignedIn();
-    } else {
+    } else if (event === 'SIGNED_OUT') {
       showAuthScreen();
     }
   });
+
+  // Check for existing session on load (handles OAuth redirects)
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    state.user = session.user;
+    state.accessToken = session.access_token;
+    onSignedIn();
+  } else {
+    showAuthScreen();
+  }
 }
 
 function showAuthError(form, msg) {
