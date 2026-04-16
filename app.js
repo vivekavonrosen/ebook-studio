@@ -96,26 +96,20 @@ function initAuth() {
     location.reload();
   });
 
-  // Auth state changes
+  // Auth state changes — handles page load, OAuth redirects, and sign out
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      state.user = session.user;
-      state.accessToken = session.access_token;
-      onSignedIn();
+    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (session?.user) {
+        state.user = session.user;
+        state.accessToken = session.access_token;
+        onSignedIn();
+      } else {
+        showAuthScreen();
+      }
     } else if (event === 'SIGNED_OUT') {
       showAuthScreen();
     }
   });
-
-  // Check for existing session on load (handles OAuth redirects)
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    state.user = session.user;
-    state.accessToken = session.access_token;
-    onSignedIn();
-  } else {
-    showAuthScreen();
-  }
 }
 
 function showAuthError(form, msg) {
