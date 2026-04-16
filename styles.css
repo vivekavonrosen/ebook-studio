@@ -57,6 +57,9 @@ body {
 .header-logo { display: flex; align-items: center; gap: 0.5rem; }
 .logo-mark { color: var(--gold); font-size: 1.2rem; }
 .logo-text { font-family: var(--font-display); font-size: 1.5rem; color: #fff; letter-spacing: 0.1em; }
+.header-user { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.header-user .btn-ghost { color: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.25); border-radius: var(--radius); }
+.header-user .btn-ghost:hover { color: #fff; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.5); }
 
 .step-trail { display: flex; align-items: center; }
 .trail-item { display: flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.45rem; cursor: pointer; opacity: 0.4; transition: opacity var(--transition); }
@@ -71,7 +74,7 @@ body {
 }
 .trail-item.active .trail-num { background: var(--gold); border-color: var(--gold); color: var(--purple-dark); }
 .trail-item.done .trail-num { background: var(--teal); border-color: var(--teal); color: #fff; }
-.trail-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.55); letter-spacing: 0.07em; text-transform: uppercase; }
+.trail-label { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.75); letter-spacing: 0.07em; text-transform: uppercase; }
 .trail-item.active .trail-label { color: #fff; }
 .trail-divider { width: 16px; height: 1px; background: rgba(255,255,255,0.18); flex-shrink: 0; }
 
