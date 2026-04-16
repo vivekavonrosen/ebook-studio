@@ -5,7 +5,13 @@
 // ── Supabase client ───────────────────────────────────────────
 const SUPABASE_URL = 'https://umreguyhensnwqafpukv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcmVndXloZW5zbndxYWZwdWt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTIxNDgsImV4cCI6MjA4OTg4ODE0OH0.F1-5mDb3MeUCj8_U5dl5fEU-996lqZd9Pwc0S-QIfV8';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
 
 // ── State ──────────────────────────────────────────────────────
 const state = {
