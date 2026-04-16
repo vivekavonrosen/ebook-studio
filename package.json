@@ -1,7 +1,7 @@
 {
   "name": "ebook-studio",
   "version": "1.0.0",
-  "description": "Transform your body of work into a published eBook — powered by Claude AI",
+  "description": "AI-powered eBook generation studio",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@supabase/supabase-js": "^2.49.4",
     "axios": "^1.7.0",
     "cheerio": "^1.0.0",
     "cors": "^2.8.5",
@@ -23,6 +24,6 @@
     "nodemon": "^3.1.0"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0"
   }
 }

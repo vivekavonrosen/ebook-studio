@@ -9,18 +9,41 @@ const mammoth = require('mammoth');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── Supabase ─────────────────────────────────────────────────────
+const sbAdmin = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
+
+function userClient(accessToken) {
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+}
+
+async function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const { data: { user }, error } = await sbAdmin.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
+  req.user = user;
+  req.accessToken = token;
+  next();
+}
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 const upload = multer({
-  dest: path.join(__dirname, 'uploads'),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ['.pdf', '.docx', '.doc', '.txt', '.md'];
@@ -31,18 +54,17 @@ const upload = multer({
 });
 
 // ── Text Extraction ─────────────────────────────────────────────
-async function extractFromFile(filePath, originalName) {
+async function extractFromFile(buffer, originalName) {
   const ext = path.extname(originalName).toLowerCase();
   if (ext === '.pdf') {
-    const buffer = fs.readFileSync(filePath);
     const data = await pdfParse(buffer);
     return data.text;
   }
   if (ext === '.docx' || ext === '.doc') {
-    const result = await mammoth.extractRawText({ path: filePath });
+    const result = await mammoth.extractRawText({ buffer });
     return result.value;
   }
-  return fs.readFileSync(filePath, 'utf8');
+  return buffer.toString('utf8');
 }
 
 async function scrapeUrl(url) {
@@ -75,13 +97,11 @@ app.post('/api/extract/files', upload.array('files', 30), async (req, res) => {
   const results = [], errors = [];
   for (const file of req.files || []) {
     try {
-      const text = await extractFromFile(file.path, file.originalname);
+      const text = await extractFromFile(file.buffer, file.originalname);
       const cleaned = text.replace(/\s+/g, ' ').trim();
       results.push({ name: file.originalname, type: 'file', wordCount: cleaned.split(/\s+/).length, charCount: cleaned.length, text: cleaned.substring(0, 120000) });
     } catch (err) {
       errors.push({ name: file.originalname, error: err.message });
-    } finally {
-      try { fs.unlinkSync(file.path); } catch {}
     }
   }
   res.json({ results, errors });
@@ -520,14 +540,65 @@ app.post('/api/lead', async (req, res) => {
   }
 });
 
-// ── SPA catch-all ────────────────────────────────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// ── Projects ──────────────────────────────────────────────────────
+app.get('/api/projects', requireAuth, async (req, res) => {
+  const sb = userClient(req.accessToken);
+  const { data, error } = await sb
+    .from('projects')
+    .select('id, title, subtitle, status, updated_at, created_at')
+    .order('updated_at', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ projects: data });
 });
 
-if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
-  fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true });
-}
+app.post('/api/projects', requireAuth, async (req, res) => {
+  const sb = userClient(req.accessToken);
+  const { data, error } = await sb
+    .from('projects')
+    .insert({ ...req.body, user_id: req.user.id })
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ project: data });
+});
+
+app.get('/api/projects/:id', requireAuth, async (req, res) => {
+  const sb = userClient(req.accessToken);
+  const { data, error } = await sb
+    .from('projects')
+    .select('*')
+    .eq('id', req.params.id)
+    .single();
+  if (error) return res.status(404).json({ error: 'Project not found' });
+  res.json({ project: data });
+});
+
+app.put('/api/projects/:id', requireAuth, async (req, res) => {
+  const sb = userClient(req.accessToken);
+  const { data, error } = await sb
+    .from('projects')
+    .update(req.body)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ project: data });
+});
+
+app.delete('/api/projects/:id', requireAuth, async (req, res) => {
+  const sb = userClient(req.accessToken);
+  const { error } = await sb
+    .from('projects')
+    .delete()
+    .eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true });
+});
+
+// ── SPA catch-all ────────────────────────────────────────────────
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`\n  ✦  eBook Studio\n`);
