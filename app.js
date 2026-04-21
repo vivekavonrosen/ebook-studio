@@ -27,6 +27,79 @@ const state = {
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
 
+// ── AI Spinner Overlay ────────────────────────────────────────────
+const SPINNER_SAYINGS = [
+  "Consulting the universe for inspiration…",
+  "Arguing with the muse — she's being dramatic…",
+  "Translating your genius into paragraphs…",
+  "Convincing the AI not to write a thriller…",
+  "Sifting through your brilliance like a literary archaeologist…",
+  "Building the bridge between your brain and your readers…",
+  "Teaching robots to appreciate nuance…",
+  "Turning 'I know this stuff' into 'I wrote the book on it'…",
+  "Polishing your ideas until they shine…",
+  "Counting your insights and losing count (there are so many)…",
+  "Brewing your thought leadership into chapters…",
+  "Untangling your expertise for public consumption…",
+  "Making you sound effortlessly brilliant (you're welcome)…",
+  "Channeling your inner bestselling author…",
+  "Applying the ancient art of structured thinking…",
+  "Wrangling your knowledge into something magnificent…",
+  "Persuading the algorithms that you're worth reading…",
+  "Cross-referencing your ideas with the laws of publishing…",
+];
+let _spinnerInterval = null;
+let _sayingInterval = null;
+
+function initSpinner() {
+  const el = document.createElement('div');
+  el.id = 'aiOverlay'; el.className = 'ai-overlay hidden';
+  el.innerHTML = `
+    <div class="ai-spinner-box">
+      <div class="ai-spinner-ring"></div>
+      <div class="ai-spinner-title" id="aiSpinnerTitle">THINKING…</div>
+      <div class="ai-spinner-saying" id="aiSpinnerSaying"></div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function showSpinner(title = 'THINKING…') {
+  const overlay = $('#aiOverlay');
+  if (!overlay) return;
+  $('#aiSpinnerTitle').textContent = title;
+  overlay.classList.remove('hidden');
+  // Cycle sayings
+  const sayingEl = $('#aiSpinnerSaying');
+  const shuffled = [...SPINNER_SAYINGS].sort(() => Math.random() - 0.5);
+  let idx = 0;
+  sayingEl.textContent = shuffled[idx];
+  _sayingInterval = setInterval(() => {
+    sayingEl.classList.add('fade');
+    setTimeout(() => {
+      idx = (idx + 1) % shuffled.length;
+      sayingEl.textContent = shuffled[idx];
+      sayingEl.classList.remove('fade');
+    }, 500);
+  }, 3500);
+}
+
+function hideSpinner() {
+  $('#aiOverlay')?.classList.add('hidden');
+  clearInterval(_sayingInterval);
+}
+
+function showErrorBanner(stepId, title, detail) {
+  const step = $(`#${stepId}`);
+  if (!step) return;
+  // Remove any existing banner
+  step.querySelector('.error-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.className = 'error-banner';
+  banner.innerHTML = `<div class="error-banner-icon">⚠️</div><div class="error-banner-text"><strong>${title}</strong>${detail}</div>`;
+  step.querySelector('.step-inner')?.prepend(banner);
+  setTimeout(() => banner.remove(), 12000);
+}
+
 function toast(msg, type = 'info', dur = 4000) {
   const el = document.createElement('div');
   el.className = `toast ${type}`; el.textContent = msg;
@@ -419,6 +492,7 @@ async function analyzeContent() {
   if (content.length < 200) return toast('Add more content first.', 'info');
   state.answers.authorName = $('#authorNameInput').value.trim();
   state.contentOwner = $('input[name="contentOwner"]:checked')?.value || 'myself';
+  showSpinner('ANALYSING YOUR CONTENT…');
   goToStep(2);
   $('#ideasLoading').classList.remove('hidden');
   $('#ideasGrid').innerHTML = ''; $('#confirmIdea').classList.add('hidden');
@@ -428,8 +502,14 @@ async function analyzeContent() {
     if (data.error) throw new Error(data.error);
     state.ideas = data.ideas;
     renderIdeas();
-  } catch (err) { toast(`Analysis failed: ${err.message}`, 'error'); goToStep(1); }
-  finally { $('#ideasLoading').classList.add('hidden'); }
+  } catch (err) {
+    toast(`Analysis failed: ${err.message}`, 'error');
+    showErrorBanner('step-2', 'Analysis failed', err.message);
+    goToStep(1);
+  } finally {
+    hideSpinner();
+    $('#ideasLoading').classList.add('hidden');
+  }
 }
 
 // ── Step 2: Ideas ─────────────────────────────────────────────
@@ -458,6 +538,7 @@ function renderIdeas() {
 // ── Step 3: Pillars ───────────────────────────────────────────
 async function buildPillars() {
   if (!state.selectedIdea) return;
+  showSpinner('BUILDING YOUR CHAPTERS…');
   goToStep(3);
   $('#selectedIdeaBanner').innerHTML = `<div class="sib-title">${state.selectedIdea.title}</div><div class="sib-subtitle">${state.selectedIdea.subtitle}</div>`;
   $('#pillarsLoading').classList.remove('hidden'); $('#pillarsContainer').innerHTML = '';
@@ -467,8 +548,14 @@ async function buildPillars() {
     if (data.error) throw new Error(data.error);
     state.pillars = data.pillars; renderPillars();
     await saveProject({ status: 'draft' });
-  } catch (err) { toast(`Could not build structure: ${err.message}`, 'error'); goToStep(2); }
-  finally { $('#pillarsLoading').classList.add('hidden'); }
+  } catch (err) {
+    toast(`Could not build structure: ${err.message}`, 'error');
+    showErrorBanner('step-3', 'Chapter structure failed', err.message);
+    goToStep(2);
+  } finally {
+    hideSpinner();
+    $('#pillarsLoading').classList.add('hidden');
+  }
   $('#confirmPillars').onclick = () => { collectPillars(); goToStep(4); initClarify(); };
   $('#regeneratePillars').onclick = buildPillars;
   $('#addPillarBtn').onclick = () => { state.pillars.push({ id: String(state.pillars.length+1), title: 'New Chapter', description: '', keyInsights: [], order: state.pillars.length+1 }); renderPillars(); };
@@ -599,12 +686,39 @@ async function startGeneration() {
     if (currentChapterIndex >= 0) state.generatedChapters[currentChapterIndex].content += text;
   };
 
+  let streamCompleted = false;
+  let lastActivity = Date.now();
+  let stallTimer = null;
+
+  const resetStallTimer = () => {
+    clearTimeout(stallTimer);
+    lastActivity = Date.now();
+    stallTimer = setTimeout(() => {
+      if (!streamCompleted && state.isGenerating) {
+        state.isGenerating = false;
+        previewBody.querySelector('.writing-cursor')?.remove();
+        $('#previewStatus').textContent = 'Timed out — some chapters may be incomplete';
+        $('#backTo5Gen').classList.remove('hidden');
+        // Still allow export of whatever was written
+        if (state.generatedChapters.some(c => c.content.length > 0)) {
+          $('#goToMarketing').classList.remove('hidden');
+          toast('Generation timed out. What was written has been saved — you can still export.', 'error', 8000);
+          saveProject({ generated_chapters: state.generatedChapters, status: 'draft' });
+        } else {
+          toast('Generation timed out with no content. Please try again.', 'error', 6000);
+        }
+      }
+    }, 90000); // 90s with no activity = stalled
+  };
+
   try {
     const response = await fetch('/api/generate', { method: 'POST', headers: { 'Authorization': `Bearer ${state.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ selectedIdea: state.selectedIdea, pillars: state.pillars, answers: state.answers, content: combineContent(), mode: state.mode, brandGuide: state.branding.brandGuide, contentOwner: state.contentOwner }) });
     if (!response.ok) throw new Error(`Server error: ${response.status}`);
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+    resetStallTimer();
     while (true) {
       const { done, value } = await reader.read(); if (done) break;
+      resetStallTimer();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n'); buffer = lines.pop();
       for (const line of lines) {
@@ -618,6 +732,8 @@ async function startGeneration() {
           if (data.type==='text') appendText(data.text);
           if (data.type==='chapter_end') { const ch=data.chapter; let key=ch===0?'intro':ch===-1?'about':ch===state.pillars.length+1?'conclusion':`ch${ch}`; setChapterDone(key); }
           if (data.type==='complete') {
+            streamCompleted = true;
+            clearTimeout(stallTimer);
             $$('.cp-item').forEach(el=>{ el.classList.remove('writing'); el.classList.add('done'); });
             previewBody.querySelector('.writing-cursor')?.remove();
             $('#previewStatus').textContent = 'Complete ✓'; $('#goToMarketing').classList.remove('hidden');
@@ -626,12 +742,35 @@ async function startGeneration() {
             toast('Your eBook has been written and saved!', 'success');
           }
           if (data.type==='error') throw new Error(data.message);
-        } catch {}
+        } catch (parseErr) { /* skip malformed SSE lines */ }
+      }
+    }
+    // Stream ended — check if we got a complete event
+    clearTimeout(stallTimer);
+    if (!streamCompleted && state.isGenerating) {
+      state.isGenerating = false;
+      previewBody.querySelector('.writing-cursor')?.remove();
+      const hasContent = state.generatedChapters.some(c => c.content.length > 100);
+      if (hasContent) {
+        $$('.cp-item.writing').forEach(el => el.classList.remove('writing'));
+        $('#previewStatus').textContent = 'Interrupted — partial content saved';
+        $('#goToMarketing').classList.remove('hidden');
+        $('#backTo5Gen').classList.remove('hidden');
+        await saveProject({ generated_chapters: state.generatedChapters, status: 'draft' });
+        toast('Generation was interrupted partway through. What was written has been saved — you can still export or try again.', 'error', 8000);
+      } else {
+        $('#previewStatus').textContent = 'Error — please try again';
+        $('#backTo5Gen').classList.remove('hidden');
+        toast('Generation failed to produce content. Please go back and try again.', 'error');
       }
     }
   } catch (err) {
-    state.isGenerating = false; toast(`Generation failed: ${err.message}`, 'error');
-    $('#previewStatus').textContent = 'Error — try again'; $('#backTo5Gen').classList.remove('hidden');
+    clearTimeout(stallTimer);
+    state.isGenerating = false;
+    toast(`Generation failed: ${err.message}`, 'error');
+    $('#previewStatus').textContent = 'Error — try again';
+    $('#backTo5Gen').classList.remove('hidden');
+    previewBody.querySelector('.writing-cursor')?.remove();
   }
 
   $('#goToMarketing').addEventListener('click', () => { goToStep(7); generateMarketingPlan(); });
@@ -828,6 +967,7 @@ function initTrailNav() {
 
 // ── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  initSpinner();
   initAuth();
   initLeadModal();
   $('#dashboardBtn').addEventListener('click', showDashboard);
