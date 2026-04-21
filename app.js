@@ -40,11 +40,12 @@ function authFetch(url, opts = {}) {
 
 // ── AUTH ───────────────────────────────────────────────────────
 window.showAuthTab = function(tab) {
-  ['signin','signup','forgot','confirm'].forEach(t => {
-    $(`#form${t.charAt(0).toUpperCase()+t.slice(1)}`)?.classList.add('hidden');
-  });
-  $(`#tabSignIn`)?.classList.remove('active');
-  $(`#tabSignUp`)?.classList.remove('active');
+  $('#formSignIn')?.classList.add('hidden');
+  $('#formSignUp')?.classList.add('hidden');
+  $('#formForgot')?.classList.add('hidden');
+  $('#formConfirm')?.classList.add('hidden');
+  $('#tabSignIn')?.classList.remove('active');
+  $('#tabSignUp')?.classList.remove('active');
   if (tab === 'signin') { $('#formSignIn').classList.remove('hidden'); $('#tabSignIn')?.classList.add('active'); }
   else if (tab === 'signup') { $('#formSignUp').classList.remove('hidden'); $('#tabSignUp')?.classList.add('active'); }
   else if (tab === 'forgot') { $('#formForgot').classList.remove('hidden'); }
