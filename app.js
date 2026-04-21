@@ -422,6 +422,14 @@ function initTrailNav() {
   $$('.trail-item').forEach(item => {
     item.addEventListener('click', () => {
       const step = parseInt(item.dataset.step);
+      const bookWritten = Array.isArray(state.generatedChapters) && state.generatedChapters.some(c => c.content);
+
+      // Step 6 is the generation screen — once the book is written it has nothing useful to show.
+      // Redirect any click on step 6 (or forward to step 7 from step 6) to the Export screen instead.
+      if (step === 6 && bookWritten) { goToStep(7); renderEbookPreview(); return; }
+      if (step === 7 && bookWritten) { goToStep(7); renderEbookPreview(); return; }
+      if (step === 8 && state.marketingPlan) { goToStep(8); generateMarketingPlan(); return; }
+
       if (step < state.currentStep) {
         if (step === 1 && !confirm('Go back to Step 1 to edit your sources?')) return;
         goToStep(step);
