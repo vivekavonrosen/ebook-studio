@@ -244,9 +244,15 @@ Return ONLY a valid JSON array:
   }
 });
 
-// ── Generate (streaming) ────────────────────────────────────────
-app.post('/api/generate', async (req, res) => {
-  const { selectedIdea, pillars, answers, content, mode, brandGuide, contentOwner } = req.body;
+// ── Generate ONE chapter (streaming) ────────────────────────────
+// Called once per chapter from the client — avoids Vercel timeout
+app.post('/api/generate/chapter', async (req, res) => {
+  const {
+    selectedIdea, pillars, answers, content, mode, brandGuide, contentOwner,
+    chapterType,   // 'intro' | 'chapter' | 'conclusion' | 'about'
+    chapterIndex,  // 0-based index into pillars (only for chapterType='chapter')
+    writtenSummaries = [],
+  } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -255,7 +261,7 @@ app.post('/api/generate', async (req, res) => {
   res.flushHeaders();
 
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
-  const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 20000);
 
   const isSynthesis = mode === 'synthesis';
   const isFirstPerson = contentOwner !== 'client';
@@ -263,7 +269,7 @@ app.post('/api/generate', async (req, res) => {
 
   const voiceInstruction = isFirstPerson
     ? `VOICE: Write in first person throughout (I, me, my, we). The author is speaking directly to the reader. Never refer to the author by name or in third person — they ARE the narrator.`
-    : `VOICE: Write in third person throughout (she/he/they, or use the author's name: ${answers.authorName || 'the author'}). This is a book ABOUT the author's expertise and methodology, not written AS the author. Refer to the author by name or as "she" when crediting insights.`;
+    : `VOICE: Write in third person throughout (she/he/they, or use the author's name: ${answers.authorName || 'the author'}). This is a book ABOUT the author's expertise and methodology, not written AS the author.`;
 
   const bookContext = `BOOK: "${selectedIdea.title}: ${selectedIdea.subtitle}"
 TARGET READER: ${answers.idealReader || 'Not specified'}
@@ -277,21 +283,16 @@ ${brandGuide ? `BRAND VOICE & GUIDELINES: ${brandGuide.substring(0, 500)}` : ''}
 ${isSynthesis ? 'MODE: This is a synthesis book drawing threads from across multiple works.' : ''}
 ${voiceInstruction}`;
 
+  const alreadyWritten = writtenSummaries.length > 0
+    ? `\nALREADY WRITTEN — DO NOT REPEAT these stories, examples, or frameworks:\n${writtenSummaries.map(s => `- ${s}`).join('\n')}\nUse DIFFERENT examples, anecdotes, and entry points for this chapter.\n`
+    : '';
+
   try {
-    // Track what's been covered to prevent repetition
-    const writtenSummaries = [];
+    let prompt, maxTokens;
 
-    const getAlreadyWritten = () => {
-      if (writtenSummaries.length === 0) return '';
-      return `\nALREADY WRITTEN — DO NOT REPEAT these stories, examples, or frameworks:
-${writtenSummaries.map((s, i) => `- ${s}`).join('\n')}
-Use DIFFERENT examples, anecdotes, and entry points for this chapter even if drawing from the same source material.\n`;
-    };
-
-    // Introduction
-    send({ type: 'chapter_start', chapter: 0, title: 'Introduction' });
-
-    const introPrompt = `You are a professional ghostwriter. Write the INTRODUCTION for this eBook.
+    if (chapterType === 'intro') {
+      maxTokens = 2000;
+      prompt = `You are a professional ghostwriter. Write the INTRODUCTION for this eBook.
 
 ${bookContext}
 
@@ -305,44 +306,30 @@ Write 700–900 words. Follow the VOICE instruction above exactly. Include:
 4. Brief overview of the journey ahead — mention each chapter title briefly
 5. A note that establishes the author's credibility and expertise
 
-${isSynthesis ? 'This is a synthesis of multiple works — acknowledge that this book brings together the best of the author\'s thinking in a new, unified framework.' : ''}
+${isSynthesis ? "This is a synthesis of multiple works — acknowledge that this book brings together the best of the author's thinking in a new, unified framework." : ''}
 
 Be specific and pull from the actual source material. Avoid generic writing.`;
 
-    let introText = '';
-    const introStream = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: introPrompt }],
-    });
-    for await (const chunk of introStream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        send({ type: 'text', text: chunk.delta.text });
-        introText += chunk.delta.text;
-      }
-    }
-    // Extract brief summary of what the intro covered
-    writtenSummaries.push(`Introduction: ${introText.substring(0, 300).replace(/\n/g, ' ')}...`);
-    send({ type: 'chapter_end', chapter: 0 });
-
-    // Chapters
-    for (let i = 0; i < pillars.length; i++) {
-      const pillar = pillars[i];
-      send({ type: 'chapter_start', chapter: i + 1, title: pillar.title });
-
-      const chapterPrompt = `You are a professional ghostwriter. Write Chapter ${i + 1} of this eBook.
+    } else if (chapterType === 'chapter') {
+      const pillar = pillars[chapterIndex];
+      const totalChapters = pillars.length;
+      const position = chapterIndex === 0 ? 'first chapter — set the foundation'
+        : chapterIndex === totalChapters - 1 ? 'final chapter — bring it home'
+        : 'middle chapter — build on what came before';
+      maxTokens = 3000;
+      prompt = `You are a professional ghostwriter. Write Chapter ${chapterIndex + 1} of this eBook.
 
 ${bookContext}
-${getAlreadyWritten()}
+${alreadyWritten}
 THIS CHAPTER:
 Title: "${pillar.title}"
 ${pillar.subtitle ? `Subtitle: "${pillar.subtitle}"` : ''}
 What it covers: ${pillar.description}
 Key insights to include: ${(pillar.keyInsights || []).join('; ')}
 
-Chapter position: ${i + 1} of ${pillars.length} (${i === 0 ? 'first chapter — set the foundation' : i === pillars.length - 1 ? 'final chapter — bring it home' : 'middle chapter — build on what came before'})
+Chapter position: ${chapterIndex + 1} of ${totalChapters} (${position})
 
-SOURCE MATERIAL (pull actual examples, stories, and frameworks from this — but ONLY ones not already used above):
+SOURCE MATERIAL (pull actual examples, stories, and frameworks from this — ONLY ones not already used above):
 ${sourceContent}
 
 Write 900–1200 words. Follow the VOICE instruction above exactly. Structure:
@@ -351,31 +338,13 @@ Write 900–1200 words. Follow the VOICE instruction above exactly. Structure:
 3. NEW examples and anecdotes not mentioned in earlier chapters
 4. Practical takeaway, exercise, or reflection prompt specific to this chapter's topic
 
-${isSynthesis ? 'Draw threads from ACROSS the source material — show how ideas from different works connect and reinforce each other in this chapter.' : ''}
+${isSynthesis ? 'Draw threads from ACROSS the source material — show how ideas from different works connect and reinforce each other.' : ''}
 
 Be specific. Each chapter must feel like a distinct progression — not a repeat.`;
 
-      let chapterText = '';
-      const stream = await anthropic.messages.stream({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
-        messages: [{ role: 'user', content: chapterPrompt }],
-      });
-      for await (const chunk of stream) {
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-          send({ type: 'text', text: chunk.delta.text });
-          chapterText += chunk.delta.text;
-        }
-      }
-      // Add brief summary so next chapters avoid these examples
-      writtenSummaries.push(`Chapter ${i + 1} "${pillar.title}": ${chapterText.substring(0, 300).replace(/\n/g, ' ')}...`);
-      send({ type: 'chapter_end', chapter: i + 1 });
-    }
-
-    // Conclusion
-    send({ type: 'chapter_start', chapter: pillars.length + 1, title: 'Conclusion & Next Steps' });
-
-    const conclusionPrompt = `Write the CONCLUSION for this eBook.
+    } else if (chapterType === 'conclusion') {
+      maxTokens = 1500;
+      prompt = `Write the CONCLUSION for this eBook.
 
 ${bookContext}
 CHAPTERS COVERED: ${pillars.map(p => p.title).join(' → ')}
@@ -389,39 +358,45 @@ Write 500–700 words. Follow the VOICE instruction above exactly. Include:
 
 No new concepts. Bring it home with power.`;
 
-    const conclusionStream = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: conclusionPrompt }],
-    });
-    for await (const chunk of conclusionStream) {
-      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-        send({ type: 'text', text: chunk.delta.text });
-      }
-    }
-    send({ type: 'chapter_end', chapter: pillars.length + 1 });
+    } else if (chapterType === 'about') {
+      // Non-streaming for the short About section
+      const aboutMsg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: `Write a professional "About the Author" section (150–200 words, third person) based on this bio:
 
-    // About the Author
-    send({ type: 'chapter_start', chapter: -1, title: 'About the Author' });
-
-    const aboutMsg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: `Write a professional "About the Author" section (150–200 words, third person) based on this bio:
-
-${answers.authorBio || answers.authorName + ' is the author of this book.'}
+${answers.authorBio || (answers.authorName || 'the author') + ' is the author of this book.'}
 
 Make it warm, credible, and specific. End with how readers can connect with the author.`,
-      }],
+        }],
+      });
+      send({ type: 'text', text: aboutMsg.content[0].text });
+      send({ type: 'complete', summary: aboutMsg.content[0].text.substring(0, 200) });
+      return;
+    } else {
+      throw new Error(`Unknown chapterType: ${chapterType}`);
+    }
+
+    // Stream the chapter
+    let chapterText = '';
+    const stream = await anthropic.messages.stream({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
     });
-    send({ type: 'text', text: aboutMsg.content[0].text });
-    send({ type: 'chapter_end', chapter: -1 });
-    send({ type: 'complete' });
+    for await (const chunk of stream) {
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        send({ type: 'text', text: chunk.delta.text });
+        chapterText += chunk.delta.text;
+      }
+    }
+    // Return a summary so the client can pass it to the next chapter call
+    send({ type: 'complete', summary: chapterText.substring(0, 300).replace(/\n/g, ' ') });
 
   } catch (err) {
-    console.error('Generation error:', err);
+    console.error('Chapter generation error:', err);
     send({ type: 'error', message: err.message });
   } finally {
     clearInterval(heartbeat);

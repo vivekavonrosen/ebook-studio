@@ -663,116 +663,121 @@ function initChapterProgressList() {
   });
 }
 
+// Stream a single chapter from /api/generate/chapter
+// Returns the chapter summary (for passing to the next chapter to avoid repetition)
+async function streamOneChapter({ chapterType, chapterIndex, writtenSummaries, previewBody, chapterKey }) {
+  const chIdx = state.generatedChapters.findIndex(c => c.key === chapterKey);
+
+  const response = await fetch('/api/generate/chapter', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${state.accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      selectedIdea: state.selectedIdea,
+      pillars: state.pillars,
+      answers: state.answers,
+      content: combineContent(),
+      mode: state.mode,
+      brandGuide: state.branding.brandGuide,
+      contentOwner: state.contentOwner,
+      chapterType,
+      chapterIndex,
+      writtenSummaries,
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Server error ${response.status} on ${chapterType}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let summary = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n'); buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        if (data.type === 'text') {
+          const cursor = previewBody.querySelector('.writing-cursor');
+          const node = document.createTextNode(data.text);
+          if (cursor) cursor.before(node); else previewBody.appendChild(node);
+          previewBody.scrollTop = previewBody.scrollHeight;
+          if (chIdx >= 0) state.generatedChapters[chIdx].content += data.text;
+        }
+        if (data.type === 'complete') summary = data.summary || '';
+        if (data.type === 'error') throw new Error(data.message);
+      } catch (e) { /* skip malformed lines */ }
+    }
+  }
+  return summary;
+}
+
 async function startGeneration() {
   if (state.isGenerating) return;
   state.isGenerating = true;
   initChapterProgressList();
+
   const previewBody = $('#previewBody');
   previewBody.innerHTML = '<div class="writing-cursor"></div>';
-  $('#goToMarketing').classList.add('hidden'); $('#previewStatus').textContent = 'Writing…';
-  let currentChapterIndex = -1;
+  $('#goToMarketing').classList.add('hidden');
+  $('#previewStatus').textContent = 'Writing…';
 
   const setChapterWriting = key => {
     $$('.cp-item').forEach(el => el.classList.remove('writing'));
     $(`#cp-${key}`)?.classList.add('writing');
-    const ch = state.generatedChapters.find(c => c.key===key);
+    const ch = state.generatedChapters.find(c => c.key === key);
     if (ch) { $('#previewChapterLabel').textContent = ch.title; previewBody.innerHTML = '<div class="writing-cursor"></div>'; }
   };
-  const setChapterDone = key => { const el = $(`#cp-${key}`); if (el) { el.classList.remove('writing'); el.classList.add('done'); } };
-  const appendText = text => {
-    const cursor = previewBody.querySelector('.writing-cursor'), node = document.createTextNode(text);
-    if (cursor) cursor.before(node); else previewBody.appendChild(node);
-    previewBody.scrollTop = previewBody.scrollHeight;
-    if (currentChapterIndex >= 0) state.generatedChapters[currentChapterIndex].content += text;
+  const setChapterDone = key => {
+    const el = $(`#cp-${key}`);
+    if (el) { el.classList.remove('writing'); el.classList.add('done'); }
   };
 
-  let streamCompleted = false;
-  let lastActivity = Date.now();
-  let stallTimer = null;
+  // Build the ordered list of chapters to generate
+  const chaptersToGenerate = [
+    { chapterType: 'intro',       chapterKey: 'intro',      label: 'Introduction' },
+    ...state.pillars.map((p, i) => ({ chapterType: 'chapter', chapterIndex: i, chapterKey: `ch${i+1}`, label: p.title })),
+    { chapterType: 'conclusion',  chapterKey: 'conclusion', label: 'Conclusion & Next Steps' },
+    { chapterType: 'about',       chapterKey: 'about',      label: 'About the Author' },
+  ];
 
-  const resetStallTimer = () => {
-    clearTimeout(stallTimer);
-    lastActivity = Date.now();
-    stallTimer = setTimeout(() => {
-      if (!streamCompleted && state.isGenerating) {
-        state.isGenerating = false;
-        previewBody.querySelector('.writing-cursor')?.remove();
-        $('#previewStatus').textContent = 'Timed out — some chapters may be incomplete';
-        $('#backTo5Gen').classList.remove('hidden');
-        // Still allow export of whatever was written
-        if (state.generatedChapters.some(c => c.content.length > 0)) {
-          $('#goToMarketing').classList.remove('hidden');
-          toast('Generation timed out. What was written has been saved — you can still export.', 'error', 8000);
-          saveProject({ generated_chapters: state.generatedChapters, status: 'draft' });
-        } else {
-          toast('Generation timed out with no content. Please try again.', 'error', 6000);
-        }
-      }
-    }, 90000); // 90s with no activity = stalled
-  };
+  const writtenSummaries = [];
+  let hadError = false;
 
-  try {
-    const response = await fetch('/api/generate', { method: 'POST', headers: { 'Authorization': `Bearer ${state.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ selectedIdea: state.selectedIdea, pillars: state.pillars, answers: state.answers, content: combineContent(), mode: state.mode, brandGuide: state.branding.brandGuide, contentOwner: state.contentOwner }) });
-    if (!response.ok) throw new Error(`Server error: ${response.status}`);
-    const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
-    resetStallTimer();
-    while (true) {
-      const { done, value } = await reader.read(); if (done) break;
-      resetStallTimer();
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n'); buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.type==='chapter_start') {
-            const ch = data.chapter; let key = ch===0?'intro':ch===-1?'about':ch===state.pillars.length+1?'conclusion':`ch${ch}`;
-            currentChapterIndex = state.generatedChapters.findIndex(c=>c.key===key); setChapterWriting(key);
-          }
-          if (data.type==='text') appendText(data.text);
-          if (data.type==='chapter_end') { const ch=data.chapter; let key=ch===0?'intro':ch===-1?'about':ch===state.pillars.length+1?'conclusion':`ch${ch}`; setChapterDone(key); }
-          if (data.type==='complete') {
-            streamCompleted = true;
-            clearTimeout(stallTimer);
-            $$('.cp-item').forEach(el=>{ el.classList.remove('writing'); el.classList.add('done'); });
-            previewBody.querySelector('.writing-cursor')?.remove();
-            $('#previewStatus').textContent = 'Complete ✓'; $('#goToMarketing').classList.remove('hidden');
-            state.isGenerating = false;
-            await saveProject({ generated_chapters: state.generatedChapters, status: 'complete' });
-            toast('Your eBook has been written and saved!', 'success');
-          }
-          if (data.type==='error') throw new Error(data.message);
-        } catch (parseErr) { /* skip malformed SSE lines */ }
-      }
+  for (const ch of chaptersToGenerate) {
+    if (!state.isGenerating) break;
+    setChapterWriting(ch.chapterKey);
+    try {
+      const summary = await streamOneChapter({ ...ch, writtenSummaries, previewBody });
+      if (summary) writtenSummaries.push(`${ch.label}: ${summary}…`);
+      setChapterDone(ch.chapterKey);
+    } catch (err) {
+      hadError = true;
+      console.error(`Error on ${ch.label}:`, err);
+      setChapterDone(ch.chapterKey); // mark done anyway so progress bar doesn't freeze
+      toast(`⚠️ Problem writing "${ch.label}" — skipping and continuing.`, 'error', 6000);
     }
-    // Stream ended — check if we got a complete event
-    clearTimeout(stallTimer);
-    if (!streamCompleted && state.isGenerating) {
-      state.isGenerating = false;
-      previewBody.querySelector('.writing-cursor')?.remove();
-      const hasContent = state.generatedChapters.some(c => c.content.length > 100);
-      if (hasContent) {
-        $$('.cp-item.writing').forEach(el => el.classList.remove('writing'));
-        $('#previewStatus').textContent = 'Interrupted — partial content saved';
-        $('#goToMarketing').classList.remove('hidden');
-        $('#backTo5Gen').classList.remove('hidden');
-        await saveProject({ generated_chapters: state.generatedChapters, status: 'draft' });
-        toast('Generation was interrupted partway through. What was written has been saved — you can still export or try again.', 'error', 8000);
-      } else {
-        $('#previewStatus').textContent = 'Error — please try again';
-        $('#backTo5Gen').classList.remove('hidden');
-        toast('Generation failed to produce content. Please go back and try again.', 'error');
-      }
-    }
-  } catch (err) {
-    clearTimeout(stallTimer);
-    state.isGenerating = false;
-    toast(`Generation failed: ${err.message}`, 'error');
-    $('#previewStatus').textContent = 'Error — try again';
-    $('#backTo5Gen').classList.remove('hidden');
-    previewBody.querySelector('.writing-cursor')?.remove();
   }
 
+  // Finalise
+  previewBody.querySelector('.writing-cursor')?.remove();
+  state.isGenerating = false;
+  $$('.cp-item').forEach(el => { el.classList.remove('writing'); el.classList.add('done'); });
+
+  if (hadError) {
+    $('#previewStatus').textContent = 'Done (some chapters had issues)';
+    toast('Your eBook is done — a few chapters had hiccups but everything else was saved.', 'info', 8000);
+  } else {
+    $('#previewStatus').textContent = 'Complete ✓';
+    toast('Your eBook has been written and saved!', 'success');
+  }
+
+  $('#goToMarketing').classList.remove('hidden');
+  await saveProject({ generated_chapters: state.generatedChapters, status: hadError ? 'draft' : 'complete' });
   $('#goToMarketing').addEventListener('click', () => { goToStep(7); generateMarketingPlan(); });
 }
 
