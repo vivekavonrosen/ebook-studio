@@ -711,7 +711,6 @@ async function startGeneration() {
 
     // Once we start, the spinner will hide as soon as first text arrives
     let spinnerHidden = false;
-    const origStream = streamOneChapter;
 
     try {
       // Wrap streamOneChapter to hide spinner on first text chunk
