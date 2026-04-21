@@ -765,6 +765,8 @@ async function startGeneration() {
 
       if (summary) writtenSummaries.push(`${ch.label}: ${summary}…`);
       setChapterDone(ch.chapterKey);
+      // Save progress after every chapter so nothing is lost if user navigates away
+      saveProject({ generated_chapters: state.generatedChapters }).catch(console.error);
 
     } catch (err) {
       hadError = true;
@@ -784,6 +786,9 @@ async function startGeneration() {
   state.isGenerating = false;
   $$('.cp-item').forEach(el => { el.classList.remove('writing'); el.classList.add('done'); });
 
+  // Save FIRST — then show the "saved" message so it's actually true
+  await saveProject({ generated_chapters: state.generatedChapters, status: hadError ? 'draft' : 'complete' });
+
   if (hadError) {
     $('#previewStatus').textContent = 'Done (some chapters had issues)';
     toast('Your eBook is done — a few chapters had hiccups but everything else was saved.', 'info', 8000);
@@ -792,20 +797,33 @@ async function startGeneration() {
     toast('Your eBook has been written and saved!', 'success');
   }
 
-  // Show download options right here in Step 6
-  const dl6 = $('#step6Downloads');
-  if (dl6) {
+  // Show download options right here in Step 6 (create dynamically so no index.html change needed)
+  const ebookHtml = generateEbookHtml(), ebookWordHtml = generateWordHtml();
+  let dl6 = $('#step6Downloads');
+  if (!dl6) {
+    dl6 = document.createElement('div');
+    dl6.id = 'step6Downloads';
+    dl6.className = 'step6-downloads';
+    dl6.innerHTML = `
+      <p class="step6-downloads-label">✦ Your eBook is ready — download it now or continue to your marketing plan</p>
+      <div class="step6-download-btns">
+        <button class="btn-primary" id="dl6Html">⬇ Download as HTML</button>
+        <button class="btn-secondary" id="dl6Word">📄 Download as Word</button>
+        <button class="btn-secondary" id="dl6Copy">📋 Copy for Google Docs</button>
+        <button class="btn-secondary" id="dl6Print">🖨 Print / Save as PDF</button>
+      </div>`;
+    // Insert before the step footer
+    const footer = $('#step-6 .step-footer');
+    if (footer) footer.before(dl6); else $('#step-6 .step-inner')?.appendChild(dl6);
+  } else {
     dl6.classList.remove('hidden');
-    const html = generateEbookHtml(), wordHtml = generateWordHtml();
-    const wire6 = (id, fn) => { const btn = $(`#${id}`); if (!btn) return; const nb = btn.cloneNode(true); btn.replaceWith(nb); nb.addEventListener('click', fn); };
-    wire6('dl6Html',  () => showLeadModal(() => { downloadFile(html, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! Open in browser → Print → Save as PDF.', 'success'); }));
-    wire6('dl6Word',  () => showLeadModal(() => { downloadFile(wordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
-    wire6('dl6Copy',  () => showLeadModal(() => { const text = state.generatedChapters.map(ch => `${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(() => toast('Copied! Paste into Google Docs.', 'success')); }));
-    wire6('dl6Print', () => { const win = window.open('', '_blank'); win.document.write(html); win.document.close(); win.onload = () => win.print(); });
   }
+  $('#dl6Html')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookHtml, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! Open in browser → Print → Save as PDF.', 'success'); }));
+  $('#dl6Word')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookWordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
+  $('#dl6Copy')?.addEventListener('click',  () => showLeadModal(() => { const text = state.generatedChapters.map(ch => `${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(() => toast('Copied! Paste into Google Docs.', 'success')); }));
+  $('#dl6Print')?.addEventListener('click', () => { const win = window.open('', '_blank'); win.document.write(ebookHtml); win.document.close(); win.onload = () => win.print(); });
 
   $('#goToMarketing').classList.remove('hidden');
-  await saveProject({ generated_chapters: state.generatedChapters, status: hadError ? 'draft' : 'complete' });
   $('#goToMarketing').addEventListener('click', () => { goToStep(7); generateMarketingPlan(); });
 }
 
