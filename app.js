@@ -298,6 +298,7 @@ async function loadProject(id) {
       renderEbookPreview();
     } else if (state.pillars.length > 0 && state.answers.idealReader) {
       goToStep(6);
+      startGeneration();
     } else if (state.pillars.length > 0) {
       goToStep(4);
       restoreClarifyForm();
