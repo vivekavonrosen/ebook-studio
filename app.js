@@ -228,6 +228,7 @@ async function loadProject(id) {
     } else if (state.pillars.length > 0) {
       goToStep(4);
       restoreClarifyForm();
+      initClarify();
     } else if (state.selectedIdea) {
       goToStep(3);
     } else {
@@ -305,6 +306,7 @@ function initTrailNav() {
         if (step === 1 && !confirm('Go back to Step 1 to edit your sources?')) return;
         goToStep(step);
         if (step === 1) initGather();
+        if (step === 4) initClarify();
       }
     });
   });
@@ -818,6 +820,7 @@ function initTrailNav() {
         if (step===1&&!confirm('Go back to Step 1 to edit your sources?')) return;
         goToStep(step);
         if (step===1) initGather();
+        if (step===4) initClarify();
       }
     });
   });
