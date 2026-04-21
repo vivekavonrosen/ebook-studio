@@ -296,6 +296,10 @@ async function loadProject(id) {
     if (state.generatedChapters.length > 0) {
       goToStep(8);
       renderEbookPreview();
+    } else if (project.status === 'complete') {
+      // Chapters saved but may not have loaded — never regenerate a completed book
+      goToStep(8);
+      renderEbookPreview();
     } else if (state.pillars.length > 0 && state.answers.idealReader) {
       goToStep(6);
       startGeneration();
@@ -332,6 +336,9 @@ function restoreClarifyForm() {
 // ── Save project to Supabase ──────────────────────────────────
 async function saveProject(updates = {}) {
   if (!state.accessToken) return;
+  // Strip base64 images from branding — they can be several MB and blow the 4.5MB Vercel limit.
+  // Images are kept in state.branding for the current session; they're only needed on the export screen.
+  const brandingForSave = { ...state.branding, logoDataUrl: null, coverDataUrl: null };
   const payload = {
     title: state.bookTitle || state.selectedIdea?.title || 'Untitled Book',
     subtitle: state.selectedIdea?.subtitle || '',
@@ -341,7 +348,7 @@ async function saveProject(updates = {}) {
     selected_idea: state.selectedIdea,
     pillars: state.pillars,
     answers: state.answers,
-    branding: state.branding,
+    branding: brandingForSave,
     generated_chapters: state.generatedChapters,
     marketing_plan: state.marketingPlan,
     content_owner: state.contentOwner,
@@ -356,6 +363,17 @@ async function saveProject(updates = {}) {
       if (data.project?.id) state.projectId = data.project.id;
     }
   } catch (err) { console.error('Save error:', err); }
+}
+
+// Lightweight save — only chapters + status. Used during generation to avoid large payloads.
+async function saveChapters(status) {
+  if (!state.accessToken || !state.projectId) return;
+  try {
+    await authFetch(`/api/projects/${state.projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ generated_chapters: state.generatedChapters, status: status || 'draft' }),
+    });
+  } catch (err) { console.error('Chapter save error:', err); }
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -766,7 +784,7 @@ async function startGeneration() {
       if (summary) writtenSummaries.push(`${ch.label}: ${summary}…`);
       setChapterDone(ch.chapterKey);
       // Save progress after every chapter so nothing is lost if user navigates away
-      saveProject({ generated_chapters: state.generatedChapters }).catch(console.error);
+      saveChapters('draft').catch(console.error);
 
     } catch (err) {
       hadError = true;
@@ -787,7 +805,7 @@ async function startGeneration() {
   $$('.cp-item').forEach(el => { el.classList.remove('writing'); el.classList.add('done'); });
 
   // Save FIRST — then show the "saved" message so it's actually true
-  await saveProject({ generated_chapters: state.generatedChapters, status: hadError ? 'draft' : 'complete' });
+  await saveChapters(hadError ? 'draft' : 'complete');
 
   if (hadError) {
     $('#previewStatus').textContent = 'Done (some chapters had issues)';
@@ -821,7 +839,7 @@ async function startGeneration() {
   $('#dl6Html')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookHtml, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! Open in browser → Print → Save as PDF.', 'success'); }));
   $('#dl6Word')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookWordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
   $('#dl6Copy')?.addEventListener('click',  () => showLeadModal(() => { const text = state.generatedChapters.map(ch => `${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(() => toast('Copied! Paste into Google Docs.', 'success')); }));
-  $('#dl6Print')?.addEventListener('click', () => { const win = window.open('', '_blank'); win.document.write(ebookHtml); win.document.close(); win.onload = () => win.print(); });
+  $('#dl6Print')?.addEventListener('click', () => { const win = window.open('', '_blank'); win.document.write(ebookHtml); win.document.close(); setTimeout(() => win.print(), 900); });
 
   $('#goToMarketing').classList.remove('hidden');
   $('#goToMarketing').addEventListener('click', () => { goToStep(7); generateMarketingPlan(); });
@@ -900,7 +918,7 @@ function renderEbookPreview() {
   wire('downloadHtml', () => showLeadModal(() => { downloadFile(html, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! To save as PDF: open the file in your browser → Print → Save as PDF.', 'success'); }));
   wire('downloadWord', () => showLeadModal(() => { downloadFile(wordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
   wire('copyForDocs', () => showLeadModal(() => { const text=state.generatedChapters.map(ch=>`${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(()=>toast('Copied! Paste into Google Docs.','success')); }));
-  wire('printEbook', () => { const win=window.open('','_blank'); win.document.write(html); win.document.close(); win.onload=()=>win.print(); });
+  wire('printEbook', () => { const win=window.open('','_blank'); win.document.write(html); win.document.close(); setTimeout(()=>win.print(), 900); });
   wire('startOver', () => { if(confirm('Start over? This book is already saved to your account.')) showDashboard(); });
 }
 
@@ -957,9 +975,15 @@ body{font-family:var(--fb);font-size:12pt;line-height:1.85;color:var(--text);bac
 .colophon-text{font-family:var(--fh);font-size:11pt;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:.5rem;}
 .colophon-brand{font-family:var(--fh);font-size:18pt;letter-spacing:.1em;color:#fff;margin-bottom:1rem;}
 .colophon-link{font-family:var(--fb);font-size:10pt;color:rgba(255,255,255,.55);text-decoration:none;letter-spacing:.06em;}
-@page{size:A4;margin:1.1in 1in;}
+@page{size:A4;margin:1in;}
 @page :first{margin:0;}
-@media print{body{background:#fff;}.book-page,.cover-wrap,.colophon-page{max-width:none;margin:0;box-shadow:none;padding:0;}.cover-wrap{page-break-after:always;}.book-page{page-break-before:always;}.colophon-page{page-break-before:always;}}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body{background:#fff;}
+  .cover-wrap{page-break-after:always;break-after:always;max-width:none;margin:0;box-shadow:none;}
+  .book-page{page-break-before:always;break-before:always;max-width:none;margin:0;box-shadow:none;padding:.75in .9in;}
+  .colophon-page{page-break-before:always;break-before:always;max-width:none;margin:0;box-shadow:none;}
+}
 ${customCss||''}</style></head><body>
 <div class="cover-wrap">${coverDataUrl?`<div class="cover-img-panel"><img src="${coverDataUrl}" alt="" /></div>`:''}<div class="cover-body">${logoDataUrl?`<img class="cover-logo-img" src="${logoDataUrl}" alt="Logo" />`:''}
 <div class="cover-eyebrow">A guide by ${authorName}</div>
@@ -985,22 +1009,10 @@ function generateWordHtml() {
   return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset="UTF-8"><title>${bookTitle}</title><style>body{font-family:${fontBody.split(',')[0].replace(/'/g,'')};font-size:12pt;line-height:1.8;color:${textColor};margin:1in}h1{font-size:22pt;color:${primaryColor};margin:2rem 0 .5rem;page-break-before:always}h2{font-size:15pt;color:${primaryColor};margin:1.5rem 0 .5rem}p{margin-bottom:1em}hr{border:none;border-top:2px solid ${accentColor};margin:2rem 0}.cover{text-align:center;padding:3rem}.author{font-size:14pt;color:${accentColor};margin-top:1rem}</style></head><body><div class="cover"><h1 style="page-break-before:avoid;font-size:32pt">${bookTitle}</h1><p class="author">by ${authorName}</p>${website?`<p style="color:#999;font-size:10pt">${website}</p>`:''}</div>${chapterContent}<p style="text-align:center;color:#999;font-size:9pt;margin-top:3rem">Created with Beyond the Dream Board · www.vivstoolbox.com</p></body></html>`;
 }
 
-// ── Lead Capture Modal ────────────────────────────────────────
-let pendingDownloadFn = null;
-function showLeadModal(onSuccess) { pendingDownloadFn = onSuccess; $('#leadOverlay').classList.remove('hidden'); setTimeout(()=>$('#lead-firstName').focus(),100); }
-function hideLeadModal() { $('#leadOverlay').classList.add('hidden'); pendingDownloadFn = null; const sb=$('#leadSubmit'),st=$('#leadSubmitText'); if(sb) sb.disabled=false; if(st) st.textContent='Get My eBook ✦'; }
-function initLeadModal() {
-  $('#leadForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    const firstName=$('#lead-firstName').value.trim(), lastName=$('#lead-lastName').value.trim(), email=$('#lead-email').value.trim(), website=$('#lead-website').value.trim(), phone=$('#lead-phone').value.trim();
-    if (!firstName||!email) return toast('Please enter your name and email.','info');
-    $('#leadSubmit').disabled=true; $('#leadSubmitText').textContent='Saving…';
-    try { await authFetch('/api/lead', { method:'POST', body:JSON.stringify({ firstName, lastName, email, website, phone, bookTitle: state.bookTitle||state.selectedIdea?.title||'' }) }); } catch {}
-    hideLeadModal(); if (pendingDownloadFn) pendingDownloadFn();
-  });
-  $('#leadSkip').addEventListener('click', () => { hideLeadModal(); if(pendingDownloadFn) pendingDownloadFn(); });
-  $('#leadOverlay').addEventListener('click', e => { if(e.target===$('#leadOverlay')) { hideLeadModal(); if(pendingDownloadFn) pendingDownloadFn(); } });
-}
+// ── Lead Capture Modal (bypassed — users are already authenticated) ───
+function showLeadModal(onSuccess) { if (onSuccess) onSuccess(); }
+function hideLeadModal() {}
+function initLeadModal() {}
 
 function initTrailNav() {
   $$('.trail-item').forEach(item => {
