@@ -663,59 +663,6 @@ function initChapterProgressList() {
   });
 }
 
-// Stream a single chapter from /api/generate/chapter
-// Returns the chapter summary (for passing to the next chapter to avoid repetition)
-async function streamOneChapter({ chapterType, chapterIndex, writtenSummaries, previewBody, chapterKey }) {
-  const chIdx = state.generatedChapters.findIndex(c => c.key === chapterKey);
-
-  const response = await fetch('/api/generate/chapter', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${state.accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      selectedIdea: state.selectedIdea,
-      pillars: state.pillars,
-      answers: state.answers,
-      content: combineContent(),
-      mode: state.mode,
-      brandGuide: state.branding.brandGuide,
-      contentOwner: state.contentOwner,
-      chapterType,
-      chapterIndex,
-      writtenSummaries,
-    }),
-  });
-
-  if (!response.ok) throw new Error(`Server error ${response.status} on ${chapterType}`);
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let summary = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n'); buffer = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const data = JSON.parse(line.slice(6));
-        if (data.type === 'text') {
-          const cursor = previewBody.querySelector('.writing-cursor');
-          const node = document.createTextNode(data.text);
-          if (cursor) cursor.before(node); else previewBody.appendChild(node);
-          previewBody.scrollTop = previewBody.scrollHeight;
-          if (chIdx >= 0) state.generatedChapters[chIdx].content += data.text;
-        }
-        if (data.type === 'complete') summary = data.summary || '';
-        if (data.type === 'error') throw new Error(data.message);
-      } catch (e) { /* skip malformed lines */ }
-    }
-  }
-  return summary;
-}
-
 async function startGeneration() {
   if (state.isGenerating) return;
   state.isGenerating = true;
@@ -724,18 +671,7 @@ async function startGeneration() {
   const previewBody = $('#previewBody');
   previewBody.innerHTML = '<div class="writing-cursor"></div>';
   $('#goToMarketing').classList.add('hidden');
-  $('#previewStatus').textContent = 'Writing…';
-
-  const setChapterWriting = key => {
-    $$('.cp-item').forEach(el => el.classList.remove('writing'));
-    $(`#cp-${key}`)?.classList.add('writing');
-    const ch = state.generatedChapters.find(c => c.key === key);
-    if (ch) { $('#previewChapterLabel').textContent = ch.title; previewBody.innerHTML = '<div class="writing-cursor"></div>'; }
-  };
-  const setChapterDone = key => {
-    const el = $(`#cp-${key}`);
-    if (el) { el.classList.remove('writing'); el.classList.add('done'); }
-  };
+  $('#previewStatus').textContent = 'Starting…';
 
   // Build the ordered list of chapters to generate
   const chaptersToGenerate = [
@@ -744,27 +680,107 @@ async function startGeneration() {
     { chapterType: 'conclusion',  chapterKey: 'conclusion', label: 'Conclusion & Next Steps' },
     { chapterType: 'about',       chapterKey: 'about',      label: 'About the Author' },
   ];
+  const total = chaptersToGenerate.length;
+
+  const setChapterWriting = (key, label, idx) => {
+    $$('.cp-item').forEach(el => el.classList.remove('writing'));
+    $(`#cp-${key}`)?.classList.add('writing');
+    if ($('#previewChapterLabel')) $('#previewChapterLabel').textContent = label;
+    $('#previewStatus').textContent = `Writing ${idx + 1} of ${total}: ${label}`;
+    previewBody.innerHTML = '<div class="gen-chapter-header">✦ ' + label + '</div><div class="writing-cursor"></div>';
+  };
+
+  const setChapterDone = key => {
+    const el = $(`#cp-${key}`);
+    if (el) { el.classList.remove('writing'); el.classList.add('done'); }
+  };
 
   const writtenSummaries = [];
   let hadError = false;
+  let firstChapter = true;
 
-  for (const ch of chaptersToGenerate) {
+  for (let i = 0; i < chaptersToGenerate.length; i++) {
+    const ch = chaptersToGenerate[i];
     if (!state.isGenerating) break;
-    setChapterWriting(ch.chapterKey);
+
+    // Show spinner overlay between chapters (while waiting for API response)
+    showSpinner(`WRITING ${i + 1} OF ${total}…`);
+
+    setChapterWriting(ch.chapterKey, ch.label, i);
+
+    // Once we start, the spinner will hide as soon as first text arrives
+    let spinnerHidden = false;
+    const origStream = streamOneChapter;
+
     try {
-      const summary = await streamOneChapter({ ...ch, writtenSummaries, previewBody });
+      // Wrap streamOneChapter to hide spinner on first text chunk
+      const response = await fetch('/api/generate/chapter', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${state.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedIdea: state.selectedIdea,
+          pillars: state.pillars,
+          answers: state.answers,
+          content: combineContent(),
+          mode: state.mode,
+          brandGuide: state.branding.brandGuide,
+          contentOwner: state.contentOwner,
+          chapterType: ch.chapterType,
+          chapterIndex: ch.chapterIndex,
+          writtenSummaries,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let summary = '';
+      const chIdx = state.generatedChapters.findIndex(c => c.key === ch.chapterKey);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'text') {
+              // Hide spinner the moment text starts flowing
+              if (!spinnerHidden) { hideSpinner(); spinnerHidden = true; }
+              const cursor = previewBody.querySelector('.writing-cursor');
+              const node = document.createTextNode(data.text);
+              if (cursor) cursor.before(node); else previewBody.appendChild(node);
+              previewBody.scrollTop = previewBody.scrollHeight;
+              if (chIdx >= 0) state.generatedChapters[chIdx].content += data.text;
+            }
+            if (data.type === 'complete') summary = data.summary || '';
+            if (data.type === 'error') throw new Error(data.message);
+          } catch (e) { /* skip malformed SSE lines */ }
+        }
+      }
+
       if (summary) writtenSummaries.push(`${ch.label}: ${summary}…`);
       setChapterDone(ch.chapterKey);
+
     } catch (err) {
       hadError = true;
-      console.error(`Error on ${ch.label}:`, err);
-      setChapterDone(ch.chapterKey); // mark done anyway so progress bar doesn't freeze
+      hideSpinner();
+      console.error(`Error on "${ch.label}":`, err);
+      setChapterDone(ch.chapterKey);
       toast(`⚠️ Problem writing "${ch.label}" — skipping and continuing.`, 'error', 6000);
     }
+
+    hideSpinner(); // safety — always hide before next chapter
   }
 
-  // Finalise
+  // All chapters done
+  hideSpinner();
   previewBody.querySelector('.writing-cursor')?.remove();
+  previewBody.querySelector('.gen-chapter-header')?.remove();
   state.isGenerating = false;
   $$('.cp-item').forEach(el => { el.classList.remove('writing'); el.classList.add('done'); });
 
