@@ -431,6 +431,10 @@ function initTrailNav() {
       if (step === 8 && state.marketingPlan) { goToStep(8); generateMarketingPlan(); return; }
 
       if (step < state.currentStep) {
+        // Warn before leaving the generation screen — you can't come back to it
+        if (state.currentStep === 6 && bookWritten) {
+          if (!confirm('Heads up! Once you leave this screen you won\'t be able to come back to the writing view — but don\'t worry, your book is safely saved and you can download it any time from the Export screen. Continue?')) return;
+        }
         if (step === 1 && !confirm('Go back to Step 1 to edit your sources?')) return;
         goToStep(step);
         if (step === 1) initGather();
