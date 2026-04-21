@@ -294,11 +294,11 @@ async function loadProject(id) {
 
     // Go to the right step based on what's complete
     if (state.generatedChapters.length > 0) {
-      goToStep(8);
+      goToStep(7);
       renderEbookPreview();
     } else if (project.status === 'complete') {
       // Chapters saved but may not have loaded — never regenerate a completed book
-      goToStep(8);
+      goToStep(7);
       renderEbookPreview();
     } else if (state.pillars.length > 0 && state.answers.idealReader) {
       goToStep(6);
@@ -689,7 +689,7 @@ async function startGeneration() {
 
   const previewBody = $('#previewBody');
   previewBody.innerHTML = '<div class="writing-cursor"></div>';
-  $('#goToMarketing').classList.add('hidden');
+  $('#goToExport').classList.add('hidden');
   $('#previewStatus').textContent = 'Starting…';
 
   // Build the ordered list of chapters to generate
@@ -823,7 +823,7 @@ async function startGeneration() {
     dl6.id = 'step6Downloads';
     dl6.className = 'step6-downloads';
     dl6.innerHTML = `
-      <p class="step6-downloads-label">✦ Your eBook is ready — download it now or continue to your marketing plan</p>
+      <p class="step6-downloads-label">✦ Your eBook is ready — download it now or continue to export &amp; preview</p>
       <div class="step6-download-btns">
         <button class="btn-primary" id="dl6Html">⬇ Download as HTML</button>
         <button class="btn-secondary" id="dl6Word">📄 Download as Word</button>
@@ -839,10 +839,10 @@ async function startGeneration() {
   $('#dl6Html')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookHtml, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! Open in browser → Print → Save as PDF.', 'success'); }));
   $('#dl6Word')?.addEventListener('click',  () => showLeadModal(() => { downloadFile(ebookWordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
   $('#dl6Copy')?.addEventListener('click',  () => showLeadModal(() => { const text = state.generatedChapters.map(ch => `${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(() => toast('Copied! Paste into Google Docs.', 'success')); }));
-  $('#dl6Print')?.addEventListener('click', () => { const win = window.open('', '_blank'); win.document.write(ebookHtml); win.document.close(); setTimeout(() => win.print(), 900); });
+  $('#dl6Print')?.addEventListener('click', () => openForPrint(ebookHtml));
 
-  $('#goToMarketing').classList.remove('hidden');
-  $('#goToMarketing').addEventListener('click', () => { goToStep(7); generateMarketingPlan(); });
+  $('#goToExport').classList.remove('hidden');
+  $('#goToExport').addEventListener('click', () => { goToStep(7); renderEbookPreview(); });
 }
 
 // ── Step 7: Marketing ─────────────────────────────────────────
@@ -858,7 +858,6 @@ async function generateMarketingPlan() {
     renderMarketingPlan(data.plan);
   } catch (err) { toast(`Marketing plan failed: ${err.message}`, 'error'); }
   finally { $('#marketingLoading').classList.add('hidden'); }
-  $('#goToExport').onclick = () => { goToStep(8); renderEbookPreview(); };
 }
 
 function renderMarketingPlan(plan) {
@@ -906,20 +905,31 @@ function downloadMarketingPlan(plan) {
   toast('Marketing plan downloaded!', 'success');
 }
 
-// ── Step 8: Export ────────────────────────────────────────────
+// ── Step 7: Export ────────────────────────────────────────────
+function openForPrint(htmlContent) {
+  // Inject a self-firing print script so the full document renders before the dialog opens
+  const printable = htmlContent.replace('</body>',
+    '<scr' + 'ipt>window.addEventListener("load",function(){setTimeout(function(){window.print();},1500);});<\/scr' + 'ipt></body>');
+  const blob = new Blob([printable], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+
 function renderEbookPreview() {
   const html = generateEbookHtml(), wordHtml = generateWordHtml();
   const preview = $('#ebookPreview'), iframe = document.createElement('iframe');
   iframe.style.cssText = 'width:100%;border:none;min-height:900px;display:block;';
   preview.innerHTML = ''; preview.appendChild(iframe);
-  setTimeout(() => { const doc = iframe.contentDocument||iframe.contentWindow.document; doc.open(); doc.write(html); doc.close(); setTimeout(() => { const h=doc.documentElement.scrollHeight; if(h>400) iframe.style.height=h+'px'; }, 500); }, 50);
+  setTimeout(() => { const doc = iframe.contentDocument||iframe.contentWindow.document; doc.open(); doc.write(html); doc.close(); setTimeout(() => { const h=doc.documentElement.scrollHeight; if(h>400) iframe.style.height=h+'px'; }, 800); }, 50);
 
   const wire = (id, fn) => { const btn=$(`#${id}`); if(!btn) return; const nb=btn.cloneNode(true); btn.replaceWith(nb); nb.addEventListener('click', fn); };
-  wire('downloadHtml', () => showLeadModal(() => { downloadFile(html, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! To save as PDF: open the file in your browser → Print → Save as PDF.', 'success'); }));
-  wire('downloadWord', () => showLeadModal(() => { downloadFile(wordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); }));
-  wire('copyForDocs', () => showLeadModal(() => { const text=state.generatedChapters.map(ch=>`${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(()=>toast('Copied! Paste into Google Docs.','success')); }));
-  wire('printEbook', () => { const win=window.open('','_blank'); win.document.write(html); win.document.close(); setTimeout(()=>win.print(), 900); });
+  wire('downloadHtml', () => { downloadFile(html, `${safeFilename()}.html`, 'text/html'); toast('eBook downloaded! Open in browser → Print → Save as PDF.', 'success'); });
+  wire('downloadWord', () => { downloadFile(wordHtml, `${safeFilename()}.doc`, 'application/msword'); toast('Word document downloaded!', 'success'); });
+  wire('copyForDocs', () => { const text=state.generatedChapters.map(ch=>`${ch.title}\n\n${ch.content}`).join('\n\n---\n\n'); navigator.clipboard.writeText(text).then(()=>toast('Copied! Paste into Google Docs.','success')); });
+  wire('printEbook', () => openForPrint(html));
   wire('startOver', () => { if(confirm('Start over? This book is already saved to your account.')) showDashboard(); });
+  wire('goToMarketing', () => { goToStep(8); generateMarketingPlan(); });
 }
 
 function safeFilename() { return (state.selectedIdea?.title||'ebook').replace(/[^a-z0-9]/gi,'_').substring(0,60); }

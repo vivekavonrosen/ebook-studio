@@ -28,9 +28,9 @@
       <div class="trail-divider"></div>
       <div class="trail-item" data-step="6"><span class="trail-num">6</span><span class="trail-label">Generate</span></div>
       <div class="trail-divider"></div>
-      <div class="trail-item" data-step="7"><span class="trail-num">7</span><span class="trail-label">Marketing</span></div>
+      <div class="trail-item" data-step="7"><span class="trail-num">7</span><span class="trail-label">Export</span></div>
       <div class="trail-divider"></div>
-      <div class="trail-item" data-step="8"><span class="trail-num">8</span><span class="trail-label">Export</span></div>
+      <div class="trail-item" data-step="8"><span class="trail-num">8</span><span class="trail-label">Marketing</span></div>
     </nav>
     <div class="header-user">
       <button class="btn-ghost btn-sm" id="dashboardBtn">⊞ My Books</button>
@@ -355,7 +355,7 @@
         </div>
         <div class="step-footer">
           <button class="btn-ghost hidden" id="backTo5Gen">← Back</button>
-          <button class="btn-primary hidden" id="goToMarketing"><span>Generate Marketing Plan</span><span class="btn-arrow">→</span></button>
+          <button class="btn-primary hidden" id="goToExport"><span>Download My eBook</span><span class="btn-arrow">→</span></button>
         </div>
       </div>
     </section>
@@ -364,25 +364,6 @@
       <div class="step-inner step-inner--wide">
         <div class="step-header">
           <p class="step-eyebrow">Step 7 of 8</p>
-          <h1 class="step-title">Your Marketing Plan</h1>
-          <p class="step-subtitle">A launch strategy built around your book — with tactics, example posts, and AI prompts.</p>
-        </div>
-        <div class="loading-state hidden" id="marketingLoading"><div class="spinner"></div><p class="loading-text">Building your personalized marketing plan…</p></div>
-        <div class="marketing-content hidden" id="marketingContent"></div>
-        <div class="step-footer">
-          <button class="btn-ghost" id="backTo6">← Back</button>
-          <div class="footer-right">
-            <button class="btn-secondary hidden" id="downloadMarketing">⬇ Download Marketing Plan</button>
-            <button class="btn-primary" id="goToExport"><span>Review & Export</span><span class="btn-arrow">→</span></button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="step" id="step-8">
-      <div class="step-inner step-inner--wide">
-        <div class="step-header">
-          <p class="step-eyebrow">Step 8 of 8</p>
           <h1 class="step-title">Your eBook Is Ready</h1>
           <p class="step-subtitle">Preview, download, or print your finished book.</p>
         </div>
@@ -395,7 +376,28 @@
         </div>
         <div class="export-hint"><strong>HTML:</strong> Open the file in your browser → File → Print → Save as PDF. &nbsp;<strong>Word:</strong> Open in Microsoft Word or import into Google Docs.</div>
         <div class="ebook-preview-container"><div class="ebook-preview" id="ebookPreview"></div></div>
-        <div class="step-footer"><button class="btn-ghost" id="backTo7">← Back to Marketing</button></div>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo6">← Back</button>
+          <button class="btn-primary" id="goToMarketing"><span>Generate Marketing Plan</span><span class="btn-arrow">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="step" id="step-8">
+      <div class="step-inner step-inner--wide">
+        <div class="step-header">
+          <p class="step-eyebrow">Step 8 of 8</p>
+          <h1 class="step-title">Your Marketing Plan</h1>
+          <p class="step-subtitle">A launch strategy built around your book — with tactics, example posts, and AI prompts.</p>
+        </div>
+        <div class="loading-state hidden" id="marketingLoading"><div class="spinner"></div><p class="loading-text">Building your personalized marketing plan…</p></div>
+        <div class="marketing-content hidden" id="marketingContent"></div>
+        <div class="step-footer">
+          <button class="btn-ghost" id="backTo7">← Back to Export</button>
+          <div class="footer-right">
+            <button class="btn-secondary hidden" id="downloadMarketing">⬇ Download Marketing Plan</button>
+          </div>
+        </div>
       </div>
     </section>
 
