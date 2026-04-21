@@ -289,6 +289,22 @@ async function loadProject(id) {
     state.mode = project.mode || 'single';
     state.contentOwner = project.content_owner || 'myself';
 
+    // If DB has no chapter content, fall back to localStorage backup
+    if (!state.generatedChapters.length || !state.generatedChapters.some(c => c.content)) {
+      try {
+        const cached = localStorage.getItem(`ebook_ch_${project.id}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.some(c => c.content)) {
+            state.generatedChapters = parsed;
+            toast('Chapters restored from local backup — resaving to cloud…', 'info', 4000);
+            // Push the recovered chapters back to the DB
+            saveChapters(localStorage.getItem(`ebook_ch_status_${project.id}`) || 'complete');
+          }
+        }
+      } catch (e) {}
+    }
+
     $('#dashboardScreen').classList.add('hidden');
     $('#app').classList.remove('hidden');
 
@@ -367,13 +383,25 @@ async function saveProject(updates = {}) {
 
 // Lightweight save — only chapters + status. Used during generation to avoid large payloads.
 async function saveChapters(status) {
-  if (!state.accessToken || !state.projectId) return;
+  if (!state.projectId) return;
+
+  // Always write to localStorage first — instant, never fails, survives tab close
   try {
-    await authFetch(`/api/projects/${state.projectId}`, {
+    localStorage.setItem(`ebook_ch_${state.projectId}`, JSON.stringify(state.generatedChapters));
+    localStorage.setItem(`ebook_ch_status_${state.projectId}`, status || 'draft');
+  } catch (e) {}
+
+  if (!state.accessToken) return;
+  try {
+    const res = await authFetch(`/api/projects/${state.projectId}`, {
       method: 'PUT',
       body: JSON.stringify({ generated_chapters: state.generatedChapters, status: status || 'draft' }),
     });
-  } catch (err) { console.error('Chapter save error:', err); }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    console.error('Chapter cloud save error:', err);
+    toast('⚠️ Cloud save failed — your book is saved locally and will sync next time.', 'error', 7000);
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────
@@ -935,6 +963,31 @@ function renderEbookPreview() {
 function safeFilename() { return (state.selectedIdea?.title||'ebook').replace(/[^a-z0-9]/gi,'_').substring(0,60); }
 function downloadFile(content, filename, mimeType) { const blob=new Blob([content],{type:mimeType}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
 
+// Escape HTML special characters so AI-generated text never breaks the document structure
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Convert a chunk of chapter text (with simple markdown) into HTML paragraphs
+function renderChapterBody(content) {
+  return (content || '').split(/\n+/).filter(p => p.trim()).map(p => {
+    const raw = p.trim();
+    if (raw.startsWith('### ')) return `<h4 class="ch-h3">${escHtml(raw.slice(4))}</h4>`;
+    if (raw.startsWith('## '))  return `<h3 class="ch-h2">${escHtml(raw.slice(3))}</h3>`;
+    if (raw.startsWith('# '))   return `<h2 class="ch-h1">${escHtml(raw.slice(2))}</h2>`;
+    if (raw.startsWith('**') && raw.endsWith('**')) return `<h3 class="ch-h2">${escHtml(raw.slice(2, -2))}</h3>`;
+    // Escape first, then apply inline markdown (bold/italic)
+    const safe = escHtml(raw)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>');
+    return `<p>${safe}</p>`;
+  }).join('\n');
+}
+
 function generateEbookHtml() {
   const { primaryColor, accentColor, textColor, fontHeading, fontBody, logoDataUrl, coverDataUrl, customCss } = state.branding;
   const bookTitle = state.bookTitle || state.selectedIdea?.title || 'Your eBook';
@@ -944,10 +997,12 @@ function generateEbookHtml() {
   const gFontImports = [extractGFont(fontHeading), extractGFont(fontBody)].filter(Boolean).map(f=>`@import url('https://fonts.googleapis.com/css2?family=${f}:ital,wght@0,300;0,400;0,700;1,400&display=swap');`).join('\n');
   const tocItems = ['Introduction', ...state.pillars.map(p=>p.title), 'Conclusion & Next Steps', 'About the Author'];
   const hasCoverImg = !!coverDataUrl;
-  const chapterHtml = state.generatedChapters.map((ch,i) => {
-    const paragraphs = ch.content.split(/\n+/).filter(p=>p.trim()).map(p => { const line=p.trim(); if(line.startsWith('# ')) return `<h2 class="ch-h1">${line.slice(2)}</h2>`; if(line.startsWith('## ')) return `<h3 class="ch-h2">${line.slice(3)}</h3>`; if(line.startsWith('**')&&line.endsWith('**')) return `<h3 class="ch-h2">${line.slice(2,-2)}</h3>`; return `<p>${line.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>')}</p>`; }).join('\n');
+  const chapters = Array.isArray(state.generatedChapters) ? state.generatedChapters : [];
+  const chapterHtml = chapters.map((ch, i) => {
+    const paragraphs = renderChapterBody(ch.content);
     const isSpecial = ch.key==='intro'||ch.key==='conclusion'||ch.key==='about';
-    return `<div class="book-page"><div class="chapter-page">${!isSpecial?`<div class="chapter-eyebrow">Chapter ${i}</div>`:''}<h1 class="chapter-title">${ch.title}</h1><div class="chapter-rule"></div><div class="chapter-body">${paragraphs}</div>${website?`<div class="page-footer">${authorName} · ${website}</div>`:''}</div></div>`;
+    const chNum = isSpecial ? '' : `<div class="chapter-eyebrow">Chapter ${i}</div>`;
+    return `<div class="book-page"><div class="chapter-page">${chNum}<h1 class="chapter-title">${escHtml(ch.title)}</h1><div class="chapter-rule"></div><div class="chapter-body">${paragraphs}</div>${website?`<div class="page-footer">${escHtml(authorName)} · ${escHtml(website)}</div>`:''}</div></div>`;
   }).join('\n');
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>${bookTitle}</title><style>${gFontImports}
@@ -1012,9 +1067,10 @@ function generateWordHtml() {
   const authorName = state.answers.authorName || 'the author';
   const website = state.answers.website || '';
   const { primaryColor, accentColor, textColor, fontHeading, fontBody } = state.branding;
-  const chapterContent = state.generatedChapters.map(ch => {
-    const body = ch.content.split(/\n+/).filter(p=>p.trim()).map(p => { const line=p.trim(); if(line.startsWith('## ')) return `<h2>${line.slice(3)}</h2>`; if(line.startsWith('# ')) return `<h1>${line.slice(2)}</h1>`; return `<p>${line.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>')}</p>`; }).join('\n');
-    return `<h1>${ch.title}</h1>\n${body}\n<hr />`;
+  const wdChapters = Array.isArray(state.generatedChapters) ? state.generatedChapters : [];
+  const chapterContent = wdChapters.map(ch => {
+    const body = renderChapterBody(ch.content);
+    return `<h1>${escHtml(ch.title)}</h1>\n${body}\n<hr />`;
   }).join('\n');
   return `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset="UTF-8"><title>${bookTitle}</title><style>body{font-family:${fontBody.split(',')[0].replace(/'/g,'')};font-size:12pt;line-height:1.8;color:${textColor};margin:1in}h1{font-size:22pt;color:${primaryColor};margin:2rem 0 .5rem;page-break-before:always}h2{font-size:15pt;color:${primaryColor};margin:1.5rem 0 .5rem}p{margin-bottom:1em}hr{border:none;border-top:2px solid ${accentColor};margin:2rem 0}.cover{text-align:center;padding:3rem}.author{font-size:14pt;color:${accentColor};margin-top:1rem}</style></head><body><div class="cover"><h1 style="page-break-before:avoid;font-size:32pt">${bookTitle}</h1><p class="author">by ${authorName}</p>${website?`<p style="color:#999;font-size:10pt">${website}</p>`:''}</div>${chapterContent}<p style="text-align:center;color:#999;font-size:9pt;margin-top:3rem">Created with Beyond the Dream Board · www.vivstoolbox.com</p></body></html>`;
 }
@@ -1043,5 +1099,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initSpinner();
   initAuth();
   initLeadModal();
+  initTrailNav();
   $('#dashboardBtn').addEventListener('click', showDashboard);
 });
