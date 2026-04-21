@@ -815,3 +815,106 @@ body {
   .auth-brand { padding: 2rem 1.5rem; min-height: auto; }
   .auth-panel { width: 100%; min-width: unset; padding: 2rem 1.5rem; }
 }
+
+/* ── Dashboard ─────────────────────────────────────────────────── */
+#dashboardScreen {
+  min-height: 100vh;
+  background: var(--bg-soft);
+  padding-top: 80px;
+}
+.dashboard-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2.5rem;
+  gap: 1rem;
+}
+.dash-title {
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  color: var(--purple-dark);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.25rem;
+}
+.dash-sub {
+  font-size: 0.95rem;
+  color: var(--text-mid);
+}
+.dash-loading {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+.dash-empty {
+  text-align: center;
+  padding: 5rem 2rem;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 2px dashed var(--border);
+}
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.project-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  transition: all var(--transition);
+  box-shadow: 0 1px 4px rgba(87,31,129,0.06);
+}
+.project-card:hover {
+  border-color: var(--purple-mid);
+  box-shadow: 0 4px 16px rgba(87,31,129,0.12);
+  transform: translateY(-2px);
+}
+.project-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+.project-card-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.project-delete {
+  background: none;
+  border: none;
+  color: var(--text-light);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  transition: color var(--transition);
+}
+.project-delete:hover { color: #dc2626; }
+.project-card-title {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  color: var(--purple-dark);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.25rem;
+}
+.project-card-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-mid);
+  margin-bottom: 0.5rem;
+  font-style: italic;
+}
+.project-card-date {
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+.btn-sm {
+  padding: 0.42rem 0.85rem;
+  font-size: 0.78rem;
+}
