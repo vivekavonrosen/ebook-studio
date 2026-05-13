@@ -1,43 +1,55 @@
-# Project Notes — [APP NAME]
+# Project Notes — eBook Studio
 
 ---
 
 ## What This App Does
-<!-- One or two sentences. What is this thing? Who uses it? What problem does it solve? -->
-
+AI-powered eBook creation wizard. Authors upload source material (files, URLs), get AI-generated book concepts and chapter outlines, then generate a full manuscript with marketing plan. Saves projects per user to Supabase.
 
 ---
 
 ## Tech Stack
-<!-- Claude will fill this in. Leave blank for now. -->
-- Frontend:
-- Backend/Database:
-- Hosting:
-- Auth:
+- Frontend: Vanilla JS (`app.js`), HTML (`index.html`), CSS (`styles.css`) — all served from repo root
+- Backend/Database: Node/Express (`server.js`) on Vercel serverless; Supabase (`public.projects` table) for project storage; Anthropic Claude API for generation
+- Hosting: Vercel — production URL is `https://ebook-studio-pi.vercel.app`
+- Auth: Supabase email/password auth with JWT tokens passed as `Authorization: Bearer` headers to the API
 
 ---
 
 ## Current Status
-<!-- Update this every session -->
-**Last updated:** [DATE]
-**Overall status:** [ ] Just started / [ ] In progress / [ ] Mostly working / [ ] Live
+**Last updated:** 2026-05-13
+**Overall status:** [x] Mostly working
 
 What's working:
-
+- Sign in / sign up / sign out
+- Full eBook wizard (source upload, idea generation, chapter structure, chapter writing, marketing plan)
+- Project save/load/delete — data goes to `public.projects` table in Supabase
+- Password reset flow: email sends, link redirects back to app, "Set New Password" form appears, user can update password
 
 What's broken or incomplete:
-
+- Nothing known.
 
 What the next step is:
-
+- App is fully working. Next session can focus on new features or improvements.
 
 ---
 
 ## Session Log
 <!-- Paste Claude's end-of-session summary here each time. Most recent at the top. -->
 
-### [DATE] — Session Summary
-<!-- Claude writes this. You paste it here. -->
+### 2026-05-13 — Auth Fixes & Debugging Session
+
+**What broke:** Sign-in buttons did nothing. Root cause: user had manually edited `app.js` on GitHub and removed the quote marks around a URL string, which crashed the entire JS file before any functions loaded.
+
+**What we fixed:**
+1. Found and fixed the JS syntax error in `app.js` (missing quotes on `redirectTo` URL)
+2. Added `PASSWORD_RECOVERY` auth event handler in `onAuthStateChange` — without this, clicking a reset link silently signed the user in without showing a password form
+3. Added `formSetPassword` UI in `index.html` (two password fields + submit button)
+4. Added `#np-submit` click handler in `app.js` to call `sb.auth.updateUser({ password })`
+5. Pushed all fixes from the worktree to the main repo and confirmed the production deployment updated
+
+**Table confusion resolved:** App uses `public.projects` table (not `ebook_users` or `ebook_projects` — those are empty legacy tables from an earlier schema, not used by any code).
+
+**Still broken:** Supabase Site URL in dashboard still points to old `bgec6si3r` deployment URL. Password reset emails redirect there instead of production. Must be fixed manually in Supabase dashboard.
 
 
 ---
