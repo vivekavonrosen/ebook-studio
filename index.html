@@ -98,6 +98,17 @@
             </div>
           </div>
 
+          <!-- SET NEW PASSWORD (after clicking reset email link) -->
+          <div id="formSetPassword" class="hidden">
+            <p class="auth-forgot-msg">Choose a new password for your account.</p>
+            <div class="auth-fields">
+              <div class="form-group"><label class="field-label">New Password</label><input type="password" id="np-password" class="field-input" placeholder="At least 8 characters" /></div>
+              <div class="form-group"><label class="field-label">Confirm Password</label><input type="password" id="np-confirm" class="field-input" placeholder="Repeat your password" /></div>
+              <div class="auth-error hidden" id="np-error"></div>
+              <button class="btn-primary auth-submit" id="np-submit">Set New Password ✦</button>
+            </div>
+          </div>
+
           <!-- EMAIL CONFIRM -->
           <div id="formConfirm" class="hidden">
             <div class="auth-confirm-msg">

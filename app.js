@@ -123,6 +123,7 @@ window.showAuthTab = function(tab) {
   else if (tab === 'signup') { $('#formSignUp').classList.remove('hidden'); $('#tabSignUp')?.classList.add('active'); }
   else if (tab === 'forgot') { $('#formForgot').classList.remove('hidden'); }
   else if (tab === 'confirm') { $('#formConfirm').classList.remove('hidden'); }
+  else if (tab === 'setpassword') { $('#formSetPassword').classList.remove('hidden'); }
 };
 
 function initAuth() {
@@ -151,9 +152,21 @@ function initAuth() {
   $('#fp-submit').addEventListener('click', async () => {
     const email = $('#fp-email').value.trim();
     if (!email) return showAuthError('fp', 'Please enter your email.');
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: https://ebook-studio-pi.vercel.app });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: 'https://ebook-studio-pi.vercel.app' });
     if (error) showAuthError('fp', error.message);
     else { $('#fp-success').classList.remove('hidden'); $('#fp-error').classList.add('hidden'); }
+  });
+
+  // Set new password (after clicking reset email link)
+  $('#np-submit').addEventListener('click', async () => {
+    const password = $('#np-password').value;
+    const confirm = $('#np-confirm').value;
+    if (!password || password.length < 8) return showAuthError('np', 'Password must be at least 8 characters.');
+    if (password !== confirm) return showAuthError('np', 'Passwords do not match.');
+    $('#np-submit').textContent = 'Saving…'; $('#np-submit').disabled = true;
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) { showAuthError('np', error.message); $('#np-submit').textContent = 'Set New Password ✦'; $('#np-submit').disabled = false; }
+    else { onSignedIn(); }
   });
 
   // Sign out
@@ -165,7 +178,13 @@ function initAuth() {
   // Auth state changes — handles page load, OAuth redirects, and sign out
   sb.auth.onAuthStateChange(async (event, session) => {
     console.log('AUTH EVENT:', event, session?.user?.email);
-    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    if (event === 'PASSWORD_RECOVERY') {
+      // User clicked the reset link in their email — show the set-password form
+      state.user = session.user;
+      state.accessToken = session.access_token;
+      showAuthScreen();
+      showAuthTab('setpassword');
+    } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
       if (session?.user) {
         state.user = session.user;
         state.accessToken = session.access_token;
