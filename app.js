@@ -151,7 +151,7 @@ function initAuth() {
   $('#fp-submit').addEventListener('click', async () => {
     const email = $('#fp-email').value.trim();
     if (!email) return showAuthError('fp', 'Please enter your email.');
-    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: https://ebook-studio-pi.vercel.app });
     if (error) showAuthError('fp', error.message);
     else { $('#fp-success').classList.remove('hidden'); $('#fp-error').classList.add('hidden'); }
   });
